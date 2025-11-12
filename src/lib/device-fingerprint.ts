@@ -165,15 +165,11 @@ export const lockAccount = async (userId: string): Promise<boolean> => {
 
 /**
  * Vérifie si l'appareil actuel est autorisé pour cet utilisateur
+ * RETOURNE TRUE UNIQUEMENT SI L'APPAREIL EST VRAIMENT ENREGISTRÉ
+ * NE RETOURNE PAS TRUE SI LE COMPTE EST JUSTE DÉVERROUILLÉ
  */
 export const isDeviceAuthorized = async (userId: string): Promise<boolean> => {
   try {
-    // Vérifier d'abord si le compte est temporairement déverrouillé
-    const unlocked = await isAccountUnlocked(userId);
-    if (unlocked) {
-      return true;
-    }
-
     const deviceInfo = await generateDeviceFingerprint();
 
     const { data, error } = await supabase
