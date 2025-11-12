@@ -8,7 +8,8 @@ import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, FileText, Download, Calendar, FileSpreadsheet } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { ArrowLeft, FileText, Download, Calendar, FileSpreadsheet, CreditCard, Banknote, List } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 
@@ -20,6 +21,7 @@ const Reports = () => {
 
   const [csvStartDate, setCsvStartDate] = useState('');
   const [csvEndDate, setCsvEndDate] = useState('');
+  const [csvPaymentFilter, setCsvPaymentFilter] = useState<'all' | 'cash' | 'card'>('all');
   const [exportingCsv, setExportingCsv] = useState(false);
 
   const [selectedMetrics, setSelectedMetrics] = useState({
@@ -430,12 +432,18 @@ const Reports = () => {
       const endISO = end.toISOString();
 
       // Récupérer toutes les commandes
-      const { data: orders, error: ordersError } = await supabase
+      let query = supabase
         .from('orders')
         .select('*')
         .gte('created_at', startISO)
-        .lte('created_at', endISO)
-        .order('created_at', { ascending: true });
+        .lte('created_at', endISO);
+
+      // Appliquer le filtre de méthode de paiement
+      if (csvPaymentFilter !== 'all') {
+        query = query.eq('payment_method', csvPaymentFilter);
+      }
+
+      const { data: orders, error: ordersError } = await query.order('created_at', { ascending: true });
 
       if (ordersError) {
         showError('Erreur lors de la récupération des transactions');
@@ -445,7 +453,7 @@ const Reports = () => {
       }
 
       if (!orders || orders.length === 0) {
-        showError('Aucune transaction trouvée pour cette période');
+        showError('Aucune transaction trouvée pour cette période et ce filtre');
         setExportingCsv(false);
         return;
       }
@@ -534,12 +542,16 @@ const Reports = () => {
         ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
       ].join('\n');
 
+      // Générer le nom du fichier avec le filtre
+      const filterSuffix = csvPaymentFilter === 'all' ? 'toutes' : csvPaymentFilter === 'cash' ? 'comptant' : 'carte';
+      const fileName = `transactions-${filterSuffix}-${csvStartDate}-${csvEndDate}.csv`;
+
       // Télécharger le fichier
       const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `transactions-${csvStartDate}-${csvEndDate}.csv`;
+      a.download = fileName;
       a.click();
       window.URL.revokeObjectURL(url);
 
@@ -812,6 +824,33 @@ const Reports = () => {
                     className="bg-slate-900/50 border-green-500/50 text-white"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-3 mb-6">
+                <Label className="text-gray-300 font-semibold">Filtrer par méthode de paiement</Label>
+                <RadioGroup value={csvPaymentFilter} onValueChange={(value: 'all' | 'cash' | 'card') => setCsvPaymentFilter(value)}>
+                  <div className="flex items-center space-x-2 p-3 bg-slate-900/50 rounded-lg border border-green-500/30 hover:border-green-500/50 transition-colors">
+                    <RadioGroupItem value="all" id="filter-all" />
+                    <Label htmlFor="filter-all" className="text-gray-300 cursor-pointer flex items-center gap-2 flex-1">
+                      <List className="w-4 h-4 text-green-400" />
+                      Toutes les transactions
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2 p-3 bg-slate-900/50 rounded-lg border border-green-500/30 hover:border-green-500/50 transition-colors">
+                    <RadioGroupItem value="cash" id="filter-cash" />
+                    <Label htmlFor="filter-cash" className="text-gray-300 cursor-pointer flex items-center gap-2 flex-1">
+                      <Banknote className="w-4 h-4 text-green-400" />
+                      Comptant uniquement
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2 p-3 bg-slate-900/50 rounded-lg border border-green-500/30 hover:border-green-500/50 transition-colors">
+                    <RadioGroupItem value="card" id="filter-card" />
+                    <Label htmlFor="filter-card" className="text-gray-300 cursor-pointer flex items-center gap-2 flex-1">
+                      <CreditCard className="w-4 h-4 text-blue-400" />
+                      Débit/Crédit uniquement
+                    </Label>
+                  </div>
+                </RadioGroup>
               </div>
 
               <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg mb-6">
