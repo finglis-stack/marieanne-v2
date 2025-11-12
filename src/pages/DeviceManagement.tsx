@@ -7,9 +7,9 @@ import { ParticleBackground } from '@/components/particle-background';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Smartphone, Monitor, Tablet, Trash2, Power, PowerOff, Shield, Clock } from 'lucide-react';
+import { ArrowLeft, Smartphone, Monitor, Tablet, Trash2, Power, PowerOff, Shield, Clock, Unlock, Lock, Plus } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
-import { getAuthorizedDevices, revokeDevice, deleteDevice, generateDeviceFingerprint } from '@/lib/device-fingerprint';
+import { getAuthorizedDevices, revokeDevice, reactivateDevice, deleteDevice, generateDeviceFingerprint, unlockAccountTemporarily, isAccountUnlocked, lockAccount } from '@/lib/device-fingerprint';
 
 interface Device {
   id: string;
@@ -28,6 +28,8 @@ const DeviceManagement = () => {
   const [devices, setDevices] = useState<Device[]>([]);
   const [currentFingerprint, setCurrentFingerprint] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [unlockTimeRemaining, setUnlockTimeRemaining] = useState(0);
 
   useEffect(() => {
     const getUser = async () => {
@@ -38,21 +40,88 @@ const DeviceManagement = () => {
         setUser(user);
         loadDevices(user.id);
         loadCurrentFingerprint();
+        checkUnlockStatus(user.id);
       }
     };
     getUser();
   }, [navigate]);
 
+  useEffect(() => {
+    if (!isUnlocked) return;
+
+    const interval = setInterval(() => {
+      if (user) {
+        checkUnlockStatus(user.id);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isUnlocked, user]);
+
+  const checkUnlockStatus = async (userId: string) => {
+    const unlocked = await isAccountUnlocked(userId);
+    setIsUnlocked(unlocked);
+
+    if (unlocked) {
+      // Calculer le temps restant
+      const devices = await getAuthorizedDevices(userId);
+      const unlockDevice = devices.find(d => d.fingerprint === 'TEMPORARY_UNLOCK');
+      
+      if (unlockDevice) {
+        const createdAt = new Date(unlockDevice.created_at);
+        const now = new Date();
+        const diffSeconds = Math.floor((now.getTime() - createdAt.getTime()) / 1000);
+        const remaining = Math.max(0, 300 - diffSeconds); // 5 minutes = 300 secondes
+        setUnlockTimeRemaining(remaining);
+
+        if (remaining === 0) {
+          setIsUnlocked(false);
+          loadDevices(userId);
+        }
+      }
+    }
+  };
+
   const loadDevices = async (userId: string) => {
     setLoading(true);
     const devicesData = await getAuthorizedDevices(userId);
-    setDevices(devicesData);
+    // Filtrer le déverrouillage temporaire de la liste
+    const filteredDevices = devicesData.filter(d => d.fingerprint !== 'TEMPORARY_UNLOCK');
+    setDevices(filteredDevices);
     setLoading(false);
   };
 
   const loadCurrentFingerprint = async () => {
     const deviceInfo = await generateDeviceFingerprint();
     setCurrentFingerprint(deviceInfo.fingerprint);
+  };
+
+  const handleUnlockAccount = async () => {
+    if (!user) return;
+
+    const success = await unlockAccountTemporarily(user.id);
+    if (success) {
+      showSuccess('Compte déverrouillé pour 5 minutes ! 🔓');
+      setIsUnlocked(true);
+      setUnlockTimeRemaining(300);
+      checkUnlockStatus(user.id);
+    } else {
+      showError('Erreur lors du déverrouillage');
+    }
+  };
+
+  const handleLockAccount = async () => {
+    if (!user) return;
+
+    const success = await lockAccount(user.id);
+    if (success) {
+      showSuccess('Compte verrouillé 🔒');
+      setIsUnlocked(false);
+      setUnlockTimeRemaining(0);
+      loadDevices(user.id);
+    } else {
+      showError('Erreur lors du verrouillage');
+    }
   };
 
   const handleRevokeDevice = async (deviceId: string) => {
@@ -64,6 +133,16 @@ const DeviceManagement = () => {
       if (user) loadDevices(user.id);
     } else {
       showError('Erreur lors de la désactivation de l\'appareil');
+    }
+  };
+
+  const handleReactivateDevice = async (deviceId: string) => {
+    const success = await reactivateDevice(deviceId);
+    if (success) {
+      showSuccess('Appareil réactivé avec succès');
+      if (user) loadDevices(user.id);
+    } else {
+      showError('Erreur lors de la réactivation de l\'appareil');
     }
   };
 
@@ -100,6 +179,12 @@ const DeviceManagement = () => {
     });
   };
 
+  const formatTimeRemaining = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen relative overflow-hidden flex items-center justify-center">
@@ -128,25 +213,67 @@ const DeviceManagement = () => {
       <div className="relative z-10 p-6 animate-in fade-in slide-in-from-bottom-4 duration-1000">
         <div className="max-w-5xl mx-auto space-y-6">
           <div className="backdrop-blur-xl bg-slate-900/40 border border-blue-500/30 rounded-2xl p-6 shadow-2xl shadow-blue-500/20">
-            <div className="flex items-center gap-4 mb-6">
-              <Button
-                onClick={() => navigate('/dashboard')}
-                variant="outline"
-                className="bg-slate-900/50 border-blue-500/50 hover:bg-blue-500/20 hover:border-blue-400 text-gray-300 hover:text-white"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Retour
-              </Button>
-              <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent">
-                  Gestion des appareils
-                </h1>
-                <p className="text-gray-400 flex items-center gap-2">
-                  <Shield className="w-4 h-4" />
-                  Appareils autorisés à se connecter
-                </p>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-4">
+                <Button
+                  onClick={() => navigate('/dashboard')}
+                  variant="outline"
+                  className="bg-slate-900/50 border-blue-500/50 hover:bg-blue-500/20 hover:border-blue-400 text-gray-300 hover:text-white"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Retour
+                </Button>
+                <div>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent">
+                    Gestion des appareils
+                  </h1>
+                  <p className="text-gray-400 flex items-center gap-2">
+                    <Shield className="w-4 h-4" />
+                    Appareils autorisés à se connecter
+                  </p>
+                </div>
               </div>
+
+              {isUnlocked ? (
+                <Button
+                  onClick={handleLockAccount}
+                  className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white font-semibold"
+                >
+                  <Lock className="w-4 h-4 mr-2" />
+                  Verrouiller maintenant
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleUnlockAccount}
+                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Ajouter un appareil
+                </Button>
+              )}
             </div>
+
+            {isUnlocked && (
+              <div className="mb-6 p-4 bg-green-500/20 border border-green-500/50 rounded-lg animate-pulse">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Unlock className="w-6 h-6 text-green-400" />
+                    <div>
+                      <p className="text-green-400 font-semibold">Compte déverrouillé temporairement</p>
+                      <p className="text-green-300 text-sm">
+                        Connectez-vous depuis le nouvel appareil maintenant
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-green-400" />
+                    <span className="text-green-400 font-bold text-xl">
+                      {formatTimeRemaining(unlockTimeRemaining)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card className="backdrop-blur-xl bg-slate-900/60 border-blue-500/20 p-4">
@@ -258,7 +385,7 @@ const DeviceManagement = () => {
 
                     {!isCurrentDevice && (
                       <div className="flex items-center gap-2">
-                        {device.is_active && (
+                        {device.is_active ? (
                           <Button
                             onClick={() => handleRevokeDevice(device.id)}
                             variant="outline"
@@ -266,6 +393,15 @@ const DeviceManagement = () => {
                             className="bg-slate-900/50 border-orange-500/50 hover:bg-orange-500/20 text-orange-400"
                           >
                             <PowerOff className="w-4 h-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() => handleReactivateDevice(device.id)}
+                            variant="outline"
+                            size="sm"
+                            className="bg-slate-900/50 border-green-500/50 hover:bg-green-500/20 text-green-400"
+                          >
+                            <Power className="w-4 h-4" />
                           </Button>
                         )}
                         <Button
@@ -287,7 +423,14 @@ const DeviceManagement = () => {
           {devices.length === 0 && (
             <div className="backdrop-blur-xl bg-slate-900/40 border border-blue-500/30 rounded-2xl p-12 text-center shadow-2xl shadow-blue-500/20">
               <Shield className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-400 text-lg">Aucun appareil enregistré</p>
+              <p className="text-gray-400 text-lg mb-4">Aucun appareil enregistré</p>
+              <Button
+                onClick={handleUnlockAccount}
+                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Ajouter votre premier appareil
+              </Button>
             </div>
           )}
         </div>

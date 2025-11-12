@@ -48,10 +48,132 @@ export const generateDeviceFingerprint = async (): Promise<DeviceInfo> => {
 };
 
 /**
+ * Vérifie si le compte est temporairement déverrouillé
+ */
+export const isAccountUnlocked = async (userId: string): Promise<boolean> => {
+  const { data, error } = await supabase
+    .from('device_fingerprints')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('fingerprint', 'TEMPORARY_UNLOCK')
+    .eq('is_active', true)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    console.error('Error checking unlock status:', error);
+    return false;
+  }
+
+  if (data) {
+    // Vérifier si le déverrouillage n'a pas expiré (5 minutes)
+    const createdAt = new Date(data.created_at);
+    const now = new Date();
+    const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+
+    if (diffMinutes > 5) {
+      // Déverrouillage expiré, le supprimer
+      await supabase
+        .from('device_fingerprints')
+        .delete()
+        .eq('id', data.id);
+      return false;
+    }
+
+    return true;
+  }
+
+  return false;
+};
+
+/**
+ * Déverrouille temporairement le compte (5 minutes)
+ */
+export const unlockAccountTemporarily = async (userId: string): Promise<boolean> => {
+  try {
+    // Supprimer tout déverrouillage existant
+    await supabase
+      .from('device_fingerprints')
+      .delete()
+      .eq('user_id', userId)
+      .eq('fingerprint', 'TEMPORARY_UNLOCK');
+
+    // Créer un nouveau déverrouillage temporaire
+    const { error } = await supabase
+      .from('device_fingerprints')
+      .insert({
+        user_id: userId,
+        fingerprint: 'TEMPORARY_UNLOCK',
+        device_name: 'Déverrouillage temporaire (5 min)',
+        browser_name: 'N/A',
+        os_name: 'N/A',
+        is_active: true,
+      });
+
+    if (error) {
+      console.error('Error unlocking account:', error);
+      return false;
+    }
+
+    await createAuditLog({
+      action: 'UPDATE_REWARD_CARD',
+      resourceType: 'USER',
+      resourceId: userId,
+      details: {
+        action: 'temporary_unlock',
+        duration: '5 minutes',
+      },
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error in unlockAccountTemporarily:', error);
+    return false;
+  }
+};
+
+/**
+ * Verrouille le compte (supprime le déverrouillage temporaire)
+ */
+export const lockAccount = async (userId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('device_fingerprints')
+      .delete()
+      .eq('user_id', userId)
+      .eq('fingerprint', 'TEMPORARY_UNLOCK');
+
+    if (error) {
+      console.error('Error locking account:', error);
+      return false;
+    }
+
+    await createAuditLog({
+      action: 'UPDATE_REWARD_CARD',
+      resourceType: 'USER',
+      resourceId: userId,
+      details: {
+        action: 'lock_account',
+      },
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error in lockAccount:', error);
+    return false;
+  }
+};
+
+/**
  * Vérifie si l'appareil actuel est autorisé pour cet utilisateur
  */
 export const isDeviceAuthorized = async (userId: string): Promise<boolean> => {
   try {
+    // Vérifier d'abord si le compte est temporairement déverrouillé
+    const unlocked = await isAccountUnlocked(userId);
+    if (unlocked) {
+      return true;
+    }
+
     const deviceInfo = await generateDeviceFingerprint();
 
     const { data, error } = await supabase
@@ -141,6 +263,9 @@ export const registerDevice = async (userId: string): Promise<boolean> => {
       return false;
     }
 
+    // Si le compte était déverrouillé temporairement, le reverrouiller
+    await lockAccount(userId);
+
     await createAuditLog({
       action: 'CREATE_REWARD_CARD',
       resourceType: 'USER',
@@ -206,6 +331,32 @@ export const revokeDevice = async (deviceId: string): Promise<boolean> => {
 };
 
 /**
+ * Réactive un appareil désactivé
+ */
+export const reactivateDevice = async (deviceId: string): Promise<boolean> => {
+  const { error } = await supabase
+    .from('device_fingerprints')
+    .update({ is_active: true })
+    .eq('id', deviceId);
+
+  if (error) {
+    console.error('Error reactivating device:', error);
+    return false;
+  }
+
+  await createAuditLog({
+    action: 'UPDATE_REWARD_CARD',
+    resourceType: 'USER',
+    details: {
+      action: 'reactivate_device',
+      device_id: deviceId,
+    },
+  });
+
+  return true;
+};
+
+/**
  * Supprime définitivement un appareil
  */
 export const deleteDevice = async (deviceId: string): Promise<boolean> => {
@@ -239,7 +390,8 @@ export const countAuthorizedDevices = async (userId: string): Promise<number> =>
     .from('device_fingerprints')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', userId)
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .neq('fingerprint', 'TEMPORARY_UNLOCK');
 
   if (error) {
     console.error('Error counting devices:', error);
