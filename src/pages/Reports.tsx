@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, FileText, Download, Calendar } from 'lucide-react';
+import { ArrowLeft, FileText, Download, Calendar, FileSpreadsheet } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 
@@ -17,6 +17,10 @@ const Reports = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [generating, setGenerating] = useState(false);
+
+  const [csvStartDate, setCsvStartDate] = useState('');
+  const [csvEndDate, setCsvEndDate] = useState('');
+  const [exportingCsv, setExportingCsv] = useState(false);
 
   const [selectedMetrics, setSelectedMetrics] = useState({
     totalSales: true,
@@ -411,6 +415,143 @@ const Reports = () => {
     }
   };
 
+  const exportTransactionsCSV = async () => {
+    if (!csvStartDate || !csvEndDate) {
+      showError('Veuillez sélectionner une période pour l\'export CSV');
+      return;
+    }
+
+    setExportingCsv(true);
+
+    try {
+      const start = new Date(csvStartDate + 'T00:00:00');
+      const end = new Date(csvEndDate + 'T23:59:59');
+      const startISO = start.toISOString();
+      const endISO = end.toISOString();
+
+      // Récupérer toutes les commandes
+      const { data: orders, error: ordersError } = await supabase
+        .from('orders')
+        .select('*')
+        .gte('created_at', startISO)
+        .lte('created_at', endISO)
+        .order('created_at', { ascending: true });
+
+      if (ordersError) {
+        showError('Erreur lors de la récupération des transactions');
+        console.error(ordersError);
+        setExportingCsv(false);
+        return;
+      }
+
+      if (!orders || orders.length === 0) {
+        showError('Aucune transaction trouvée pour cette période');
+        setExportingCsv(false);
+        return;
+      }
+
+      // Récupérer les profils clients
+      const customerIds = [...new Set(orders.map(o => o.customer_profile_id).filter(Boolean))];
+      let customersMap: { [key: string]: any } = {};
+
+      if (customerIds.length > 0) {
+        const { data: customersData } = await supabase
+          .from('customer_profiles')
+          .select('id, customer_number')
+          .in('id', customerIds);
+
+        if (customersData) {
+          customersMap = customersData.reduce((acc, customer) => {
+            acc[customer.id] = customer;
+            return acc;
+          }, {} as { [key: string]: any });
+        }
+      }
+
+      // Récupérer les cartes récompenses
+      const cardIds = [...new Set(orders.map(o => o.reward_card_id).filter(Boolean))];
+      let cardsMap: { [key: string]: any } = {};
+
+      if (cardIds.length > 0) {
+        const { data: cardsData } = await supabase
+          .from('reward_cards')
+          .select('id, card_code')
+          .in('id', cardIds);
+
+        if (cardsData) {
+          cardsMap = cardsData.reduce((acc, card) => {
+            acc[card.id] = card;
+            return acc;
+          }, {} as { [key: string]: any });
+        }
+      }
+
+      // Créer le CSV
+      const headers = [
+        'Date',
+        'Heure',
+        'Numéro de commande',
+        'UUID Commande',
+        'Montant total',
+        'Méthode de paiement',
+        'Points gagnés',
+        'Numéro de fiche client',
+        'UUID Client',
+        'Code de carte',
+        'UUID Carte',
+        'Nombre d\'articles',
+        'Détails des articles'
+      ];
+
+      const rows = orders.map(order => {
+        const date = new Date(order.created_at);
+        const customer = order.customer_profile_id ? customersMap[order.customer_profile_id] : null;
+        const card = order.reward_card_id ? cardsMap[order.reward_card_id] : null;
+        
+        const itemsDetails = order.items?.map((item: any) => 
+          `${item.product_name} (x${item.quantity} @ ${item.unit_price}$)`
+        ).join('; ') || '';
+
+        return [
+          date.toLocaleDateString('fr-CA'),
+          date.toLocaleTimeString('fr-CA'),
+          order.order_number,
+          order.id,
+          parseFloat(order.total_amount.toString()).toFixed(2),
+          order.payment_method === 'cash' ? 'Comptant' : 'Débit/Crédit',
+          order.points_earned || 0,
+          customer?.customer_number || '',
+          order.customer_profile_id || '',
+          card?.card_code || '',
+          order.reward_card_id || '',
+          order.items?.length || 0,
+          itemsDetails
+        ];
+      });
+
+      const csv = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n');
+
+      // Télécharger le fichier
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `transactions-${csvStartDate}-${csvEndDate}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+
+      showSuccess(`${orders.length} transaction(s) exportée(s) avec succès !`);
+    } catch (error) {
+      console.error(error);
+      showError('Erreur lors de l\'export CSV');
+    }
+
+    setExportingCsv(false);
+  };
+
   return (
     <div className="min-h-screen relative overflow-hidden">
       <div 
@@ -630,6 +771,70 @@ const Reports = () => {
                   {generating ? 'Génération en cours...' : 'Générer et imprimer le rapport'}
                 </Button>
               </div>
+            </div>
+          </Card>
+
+          <Card className="backdrop-blur-xl bg-slate-900/40 border border-green-500/30 shadow-2xl shadow-green-500/20 overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <FileSpreadsheet className="w-6 h-6 text-green-400" />
+                <h2 className="text-2xl font-bold text-white">Export CSV des transactions</h2>
+              </div>
+
+              <p className="text-gray-400 mb-6">
+                Exportez toutes les transactions détaillées en format CSV pour analyse dans Excel ou autre logiciel.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="space-y-2">
+                  <Label htmlFor="csv-start-date" className="text-gray-300 flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Date de début
+                  </Label>
+                  <Input
+                    id="csv-start-date"
+                    type="date"
+                    value={csvStartDate}
+                    onChange={(e) => setCsvStartDate(e.target.value)}
+                    className="bg-slate-900/50 border-green-500/50 text-white"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="csv-end-date" className="text-gray-300 flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Date de fin
+                  </Label>
+                  <Input
+                    id="csv-end-date"
+                    type="date"
+                    value={csvEndDate}
+                    onChange={(e) => setCsvEndDate(e.target.value)}
+                    className="bg-slate-900/50 border-green-500/50 text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg mb-6">
+                <h3 className="text-green-400 font-semibold mb-2">Le fichier CSV contiendra :</h3>
+                <ul className="text-gray-300 text-sm space-y-1 list-disc list-inside">
+                  <li>Date et heure de chaque transaction</li>
+                  <li>Numéro de commande et UUID</li>
+                  <li>Montant total et méthode de paiement</li>
+                  <li>Points gagnés</li>
+                  <li>Informations client (numéro de fiche, UUID)</li>
+                  <li>Code de carte récompense et UUID</li>
+                  <li>Détails complets des articles commandés</li>
+                </ul>
+              </div>
+
+              <Button
+                onClick={exportTransactionsCSV}
+                disabled={exportingCsv || !csvStartDate || !csvEndDate}
+                className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold py-6 text-lg transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FileSpreadsheet className="w-5 h-5 mr-2" />
+                {exportingCsv ? 'Export en cours...' : 'Exporter les transactions en CSV'}
+              </Button>
             </div>
           </Card>
         </div>
