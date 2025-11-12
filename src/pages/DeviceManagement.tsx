@@ -52,45 +52,61 @@ const DeviceManagement = () => {
       }
 
       setUser(user);
+      setIsUnlocked(unlocked);
       loadDevices(user.id);
       loadCurrentFingerprint();
-      checkUnlockStatus(user.id);
+      
+      // Démarrer le chrono immédiatement si déverrouillé
+      if (unlocked) {
+        checkUnlockStatus(user.id);
+      }
     };
     getUser();
   }, [navigate]);
 
+  // Timer qui tourne en continu si déverrouillé
   useEffect(() => {
-    if (!isUnlocked) return;
+    if (!user || !isUnlocked) return;
 
     const interval = setInterval(() => {
-      if (user) {
-        checkUnlockStatus(user.id);
-      }
+      checkUnlockStatus(user.id);
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isUnlocked, user]);
+  }, [user, isUnlocked]);
 
   const checkUnlockStatus = async (userId: string) => {
     const unlocked = await isAccountUnlocked(userId);
-    setIsUnlocked(unlocked);
+    
+    if (!unlocked) {
+      setIsUnlocked(false);
+      setUnlockTimeRemaining(0);
+      loadDevices(userId);
+      return;
+    }
 
-    if (unlocked) {
-      // Calculer le temps restant
-      const devices = await getAuthorizedDevices(userId);
-      const unlockDevice = devices.find(d => d.fingerprint === 'TEMPORARY_UNLOCK');
-      
-      if (unlockDevice) {
-        const createdAt = new Date(unlockDevice.created_at);
-        const now = new Date();
-        const diffSeconds = Math.floor((now.getTime() - createdAt.getTime()) / 1000);
-        const remaining = Math.max(0, 300 - diffSeconds); // 5 minutes = 300 secondes
-        setUnlockTimeRemaining(remaining);
+    setIsUnlocked(true);
 
-        if (remaining === 0) {
-          setIsUnlocked(false);
-          loadDevices(userId);
-        }
+    // Récupérer le temps restant
+    const { data: unlockDevice } = await supabase
+      .from('device_fingerprints')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('fingerprint', 'TEMPORARY_UNLOCK')
+      .eq('is_active', true)
+      .single();
+    
+    if (unlockDevice) {
+      const createdAt = new Date(unlockDevice.created_at);
+      const now = new Date();
+      const diffSeconds = Math.floor((now.getTime() - createdAt.getTime()) / 1000);
+      const remaining = Math.max(0, 300 - diffSeconds);
+      setUnlockTimeRemaining(remaining);
+
+      if (remaining === 0) {
+        setIsUnlocked(false);
+        setUnlockTimeRemaining(0);
+        loadDevices(userId);
       }
     }
   };
