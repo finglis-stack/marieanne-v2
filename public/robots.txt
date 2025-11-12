@@ -1,0 +1,24 @@
+# Café Marie Anne - Système de gestion interne
+# Interdiction d'indexation pour tous les robots
+
+User-agent: *
+Disallow: /
+
+# Bloquer tous les moteurs de recherche
+User-agent: Googlebot
+Disallow: /
+
+User-agent: Bingbot
+Disallow: /
+
+User-agent: Slurp
+Disallow: /
+
+User-agent: DuckDuckBot
+Disallow: /
+
+User-agent: Baiduspider
+Disallow: /
+
+User-agent: YandexBot
+Disallow: /
