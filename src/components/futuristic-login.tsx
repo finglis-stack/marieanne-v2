@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Coffee, Eye, EyeOff, Loader2, MonitorPlay, Shield, AlertTriangle } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
-import { isDeviceAuthorized, registerDevice, countAuthorizedDevices } from '@/lib/device-fingerprint';
+import { isDeviceAuthorized, registerDevice, countAuthorizedDevices, isAccountUnlocked } from '@/lib/device-fingerprint';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 export const FuturisticLogin = () => {
@@ -67,7 +67,28 @@ export const FuturisticLogin = () => {
         return;
       }
 
-      // Étape 3 : Vérifier si l'appareil actuel est autorisé
+      // Étape 3 : Vérifier si le compte est temporairement déverrouillé
+      const accountUnlocked = await isAccountUnlocked(data.user.id);
+
+      if (accountUnlocked) {
+        // Compte déverrouillé : enregistrer automatiquement ce nouvel appareil
+        const registered = await registerDevice(data.user.id);
+        
+        if (!registered) {
+          showError('Erreur lors de l\'enregistrement de l\'appareil');
+          await supabase.auth.signOut();
+          setIsLoading(false);
+          return;
+        }
+
+        showSuccess('Nouvel appareil enregistré avec succès ! 🔒');
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 500);
+        return;
+      }
+
+      // Étape 4 : Vérifier si l'appareil actuel est autorisé
       const authorized = await isDeviceAuthorized(data.user.id);
 
       if (!authorized) {
