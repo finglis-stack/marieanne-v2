@@ -107,6 +107,18 @@ export const FuturisticLogin = () => {
 
     setIsLoading(true);
 
+    // RE-VÉRIFIER que le mode est toujours activé avant d'enregistrer
+    const stillUnlocked = await isAccountUnlocked(pendingUserId);
+    
+    if (!stillUnlocked) {
+      showError('⏱️ Le mode "Ajouter un appareil" a expiré. Veuillez le réactiver depuis un appareil autorisé.');
+      await supabase.auth.signOut();
+      setIsLoading(false);
+      setShowDeviceDialog(false);
+      setPendingUserId(null);
+      return;
+    }
+
     const registered = await registerDevice(pendingUserId);
 
     if (!registered) {
