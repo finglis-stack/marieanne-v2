@@ -85,7 +85,7 @@ export const FuturisticLogin = () => {
       if (!accountUnlocked) {
         // PAS DÉVERROUILLÉ = REFUS DIRECT (pas de dialogue)
         await supabase.auth.signOut();
-        showError('🚫 Appareil non autorisé. Veuillez déverrouiller le compte depuis un appareil autorisé pour ajouter ce nouvel appareil.');
+        showError('🚫 Appareil non autorisé. Veuillez activer le mode "Ajouter un appareil" depuis un appareil autorisé.');
         setIsLoading(false);
         return;
       }
