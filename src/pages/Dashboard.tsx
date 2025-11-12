@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Coffee, TrendingUp, Users, DollarSign, ShoppingCart, LogOut, Sparkles, Zap, CreditCard, Gift, Receipt, ChefHat, FileText, Activity } from 'lucide-react';
+import { Coffee, TrendingUp, Users, DollarSign, ShoppingCart, LogOut, Sparkles, Zap, CreditCard, Gift, Receipt, ChefHat, FileText, Activity, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { showSuccess, showError } from '@/utils/toast';
@@ -186,6 +186,7 @@ const Dashboard = () => {
     { label: 'File d\'attente', onClick: () => navigate('/preparation-queue'), icon: ChefHat },
     { label: 'Rapports', onClick: () => navigate('/reports'), icon: FileText },
     { label: 'Grand Livre', onClick: () => navigate('/audit-logs'), icon: Activity },
+    { label: 'Appareils', onClick: () => navigate('/device-management'), icon: Shield },
   ];
 
   return (

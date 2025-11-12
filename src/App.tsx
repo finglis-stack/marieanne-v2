@@ -15,6 +15,7 @@ import Transactions from "./pages/Transactions";
 import PreparationQueue from "./pages/PreparationQueue";
 import Reports from "./pages/Reports";
 import AuditLogs from "./pages/AuditLogs";
+import DeviceManagement from "./pages/DeviceManagement";
 import NotFound from "./pages/NotFound";
 import { ParticleBackground } from "./components/particle-background";
 
@@ -70,6 +71,7 @@ const App = () => {
             <Route path="/preparation-queue" element={<PreparationQueue />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
+            <Route path="/device-management" element={<DeviceManagement />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
