@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Smartphone, Monitor, Tablet, Trash2, Power, PowerOff, Shield, Clock, Unlock, Lock, Plus } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
-import { getAuthorizedDevices, revokeDevice, reactivateDevice, deleteDevice, generateDeviceFingerprint, unlockAccountTemporarily, isAccountUnlocked, lockAccount } from '@/lib/device-fingerprint';
+import { getAuthorizedDevices, revokeDevice, reactivateDevice, deleteDevice, generateDeviceFingerprint, unlockAccountTemporarily, isAccountUnlocked, lockAccount, isDeviceAuthorized } from '@/lib/device-fingerprint';
 
 interface Device {
   id: string;
@@ -36,12 +36,25 @@ const DeviceManagement = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         navigate('/');
-      } else {
-        setUser(user);
-        loadDevices(user.id);
-        loadCurrentFingerprint();
-        checkUnlockStatus(user.id);
+        return;
       }
+
+      // Vérifier si l'appareil est autorisé OU si le compte est déverrouillé
+      const authorized = await isDeviceAuthorized(user.id);
+      const unlocked = await isAccountUnlocked(user.id);
+
+      if (!authorized && !unlocked) {
+        // Ni autorisé ni déverrouillé = déconnexion
+        await supabase.auth.signOut();
+        showError('🚫 Appareil non autorisé');
+        navigate('/');
+        return;
+      }
+
+      setUser(user);
+      loadDevices(user.id);
+      loadCurrentFingerprint();
+      checkUnlockStatus(user.id);
     };
     getUser();
   }, [navigate]);
