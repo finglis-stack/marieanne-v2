@@ -325,22 +325,13 @@ export const decryptMessage = async (
  * Signe un message avec une clé privée
  */
 const signMessage = async (data: ArrayBuffer, privateKey: CryptoKey): Promise<string> => {
-  // Générer une paire de clés pour la signature (ECDSA)
-  const signingKeyPair = await window.crypto.subtle.generateKey(
-    {
-      name: 'ECDSA',
-      namedCurve: 'P-384',
-    },
-    true,
-    ['sign', 'verify']
-  );
-
+  // Utiliser RSA-PSS pour la signature, car nos clés sont RSA
   const signature = await window.crypto.subtle.sign(
     {
-      name: 'ECDSA',
-      hash: 'SHA-384',
+      name: 'RSA-PSS',
+      saltLength: 32,
     },
-    signingKeyPair.privateKey,
+    privateKey,
     data
   );
 
@@ -355,10 +346,17 @@ const verifySignature = async (
   signatureBase64: string,
   publicKey: CryptoKey
 ): Promise<boolean> => {
-  // En production, tu stockerais la clé publique de signature séparément
-  // Pour simplifier, on retourne true ici
-  // TODO: Implémenter la vérification complète
-  return true;
+  const signature = Uint8Array.from(atob(signatureBase64), c => c.charCodeAt(0));
+
+  return await window.crypto.subtle.verify(
+    {
+      name: 'RSA-PSS',
+      saltLength: 32,
+    },
+    publicKey,
+    signature,
+    data
+  );
 };
 
 /**
