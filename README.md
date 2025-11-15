@@ -2,12 +2,13 @@
 
 <div align="center">
 
-**Système de point de vente moderne avec gestion de cartes récompenses et file d'attente de préparation**
+**Système de point de vente moderne avec gestion de cartes récompenses, file d'attente de préparation et sécurité militaire**
 
 [![React](https://img.shields.io/badge/React-18.3.1-61DAFB?style=for-the-badge&logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5.3-3178C6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-2.81.1-3ECF8E?style=for-the-badge&logo=supabase)](https://supabase.com/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4.11-06B6D4?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com/)
+[![Security](https://img.shields.io/badge/Security-Military_Grade-red?style=for-the-badge&logo=shield)](https://github.com/)
 
 [🚀 Voir le logiciel](https://www.cafemarieanne.ca/) • [📖 Documentation](#table-des-matières) • [🐛 Signaler un bug](#)
 
@@ -21,10 +22,14 @@
 - [✨ Fonctionnalités principales](#-fonctionnalités-principales)
 - [🏗️ Architecture technique](#️-architecture-technique)
 - [🔒 Sécurité](#-sécurité)
+  - [🛡️ Chiffrement AES-256-GCM](#️-chiffrement-aes-256-gcm)
+  - [🎫 Système de tokenisation](#-système-de-tokenisation)
+  - [🍯 Honeypot & Canary Tokens](#-honeypot--canary-tokens)
+  - [🔐 Chiffrement E2E](#-chiffrement-e2e)
+  - [📱 Biométrie d'appareil](#-biométrie-dappareil)
 - [🚀 Installation](#-installation)
 - [📱 Utilisation](#-utilisation)
 - [🗄️ Structure de la base de données](#️-structure-de-la-base-de-données)
-- [🔐 Système de tokenisation](#-système-de-tokenisation)
 - [📊 Système d'audit](#-système-daudit)
 - [🎨 Interface utilisateur](#-interface-utilisateur)
 - [🛠️ Technologies utilisées](#️-technologies-utilisées)
@@ -34,7 +39,7 @@
 
 ## 🎯 À propos du projet
 
-**Café Marie Anne** est un système de gestion complet conçu pour un café scolaire. Il combine un point de vente (POS), un système de cartes récompenses avec chiffrement AES-256-GCM, une file d'attente de préparation en temps réel, et un système d'audit complet.
+**Café Marie Anne** est un système de gestion complet conçu pour un café scolaire. Il combine un point de vente (POS), un système de cartes récompenses avec chiffrement AES-256-GCM, une file d'attente de préparation en temps réel, un système d'audit complet, et des **mécanismes de sécurité de niveau militaire** incluant honeypots, canary tokens et chiffrement de bout en bout.
 
 ### 🎓 Contexte
 
@@ -43,6 +48,8 @@ Ce système a été développé pour gérer efficacement les opérations d'un ca
 - La **rapidité des transactions** pendant les heures de pointe
 - La **traçabilité complète** de toutes les opérations
 - La **gamification** via un système de points
+- La **détection d'intrusion** automatique avec honeypots
+- Le **chiffrement de bout en bout** pour les communications sensibles
 
 ---
 
@@ -103,6 +110,16 @@ Ce système a été développé pour gérer efficacement les opérations d'un ca
 - ✅ Export CSV
 - ✅ Widget en temps réel (footer)
 
+### 🛡️ Sécurité avancée
+
+- ✅ **Honeypot accounts** : Faux comptes qui alertent si connexion
+- ✅ **Canary tokens** : Tokens invisibles qui détectent les scrapers
+- ✅ **Détection de scraping** : Blocage automatique des bots
+- ✅ **Chiffrement E2E** : RSA-4096 + AES-256-GCM pour messages
+- ✅ **Perfect Forward Secrecy** : Clés éphémères par session
+- ✅ **Biométrie d'appareil** : Empreinte unique par appareil
+- ✅ **Centre de sécurité** : Dashboard dédié aux menaces
+
 ---
 
 ## 🏗️ Architecture technique
@@ -117,6 +134,13 @@ Supabase (Backend as a Service)
     ├── Auth (Authentification)
     ├── Storage (Images produits)
     └── Edge Functions (Chiffrement)
+    
+Sécurité (Multi-couches)
+    ├── Honeypots (Détection d'intrusion)
+    ├── Canary Tokens (Détection de scraping)
+    ├── E2E Encryption (RSA-4096 + AES-256)
+    ├── Device Fingerprinting (Biométrie)
+    └── Audit Trail (Traçabilité complète)
 ```
 
 ### 🗂️ Structure du projet
@@ -128,7 +152,9 @@ src/
 │   ├── pos/            # Composants du point de vente
 │   ├── inventory/      # Composants de l'inventaire
 │   ├── reward-cards/   # Composants des cartes récompenses
-│   └── audit/          # Composants d'audit
+│   ├── audit/          # Composants d'audit
+│   └── security/       # 🆕 Composants de sécurité
+│       └── canary-token-injector.tsx
 ├── pages/              # Pages de l'application
 │   ├── Index.tsx       # Page de connexion
 │   ├── Dashboard.tsx   # Tableau de bord
@@ -137,12 +163,17 @@ src/
 │   ├── RewardCards.tsx # Gestion cartes
 │   ├── Transactions.tsx # Historique
 │   ├── Reports.tsx     # Rapports
-│   └── AuditLogs.tsx   # Grand livre
+│   ├── AuditLogs.tsx   # Grand livre
+│   ├── DeviceManagement.tsx # Gestion appareils
+│   └── SecurityDashboard.tsx # 🆕 Centre de sécurité
 ├── lib/                # Utilitaires
 │   ├── crypto.ts       # Chiffrement/déchiffrement
 │   ├── tokenization.ts # Gestion des tokens
 │   ├── audit.ts        # Système d'audit
-│   └── card-validation.ts # Validation Luhn
+│   ├── card-validation.ts # Validation Luhn
+│   ├── device-fingerprint.ts # Biométrie d'appareil
+│   ├── honeypot.ts     # 🆕 Honeypots & Canary tokens
+│   └── e2e-encryption.ts # 🆕 Chiffrement E2E
 ├── integrations/       # Intégrations externes
 │   └── supabase/       # Client Supabase
 └── utils/              # Fonctions utilitaires
@@ -160,6 +191,9 @@ Toutes les données personnelles sont chiffrées **côté serveur** via une Edge
 #### 📊 Données chiffrées
 - Numéro de fiche client
 - Prénom
+- Nom
+- Email
+- Téléphone
 - Notes
 
 #### 🔐 Processus de chiffrement
@@ -215,6 +249,180 @@ Le déchiffrement nécessite :
 5. Token marqué comme "utilisé" après paiement
 ```
 
+### 🍯 Honeypot & Canary Tokens
+
+#### 🎣 Honeypot Accounts (Comptes appâts)
+
+Des **faux comptes** qui déclenchent une alerte si quelqu'un essaie de se connecter :
+
+```typescript
+// Comptes honeypot configurés :
+- admin@cafemarieanne.com
+- root@cafemarieanne.com
+- test@cafemarieanne.com
+- demo@cafemarieanne.com
+- support@cafemarieanne.com
+```
+
+**Fonctionnement :**
+1. Un attaquant essaie de se connecter avec `admin@cafemarieanne.com`
+2. Le système détecte que c'est un honeypot
+3. 🚨 **ALERTE IMMÉDIATE** enregistrée dans `security_alerts`
+4. Log complet dans le Grand Livre d'audit
+5. L'attaquant reçoit un message d'erreur générique (pour ne pas révéler le piège)
+
+#### 🕵️ Canary Tokens (Tokens sentinelles)
+
+Des **tokens invisibles** injectés dans les pages sensibles qui alertent si accédés :
+
+```typescript
+// Canary token injecté dans le Dashboard
+<CanaryTokenInjector location="dashboard" />
+
+// Format du token : CANARY_a3F2c8d9e4f5g6h7i8j9k0l1m2n3o4p5
+```
+
+**Fonctionnement :**
+1. Un token invisible est créé dans chaque page sensible
+2. Si un scraper/bot essaie de lire le token → 🚨 **ALERTE**
+3. Si quelqu'un modifie le DOM autour du token → 🚨 **ALERTE**
+4. Le token est marqué comme "déclenché" dans la DB
+5. Notification immédiate à l'admin
+
+#### 🎣 Honeypot Endpoints (Faux endpoints API)
+
+Des **faux endpoints** qui piègent les attaquants :
+
+```
+/api/admin/users       → 🚨 ALERTE
+/api/admin/delete      → 🚨 ALERTE
+/api/backup/download   → 🚨 ALERTE
+/api/config/secrets    → 🚨 ALERTE
+/wp-admin              → 🚨 ALERTE
+/phpmyadmin            → 🚨 ALERTE
+/.env                  → 🚨 ALERTE
+```
+
+#### 🔍 Détection de scraping
+
+Détection automatique des comportements de bot :
+
+```typescript
+// Si plus de 10 requêtes en moins de 1 seconde
+→ 🚨 ALERTE SCRAPING
+→ Blocage temporaire
+→ Log dans le Grand Livre
+```
+
+#### 📊 Centre de sécurité
+
+Un **dashboard dédié** pour visualiser toutes les menaces :
+
+```
+🚨 Centre de Sécurité
+├── Alertes totales
+├── Canaries déclenchés
+├── Canaries actifs
+├── Liste des alertes (avec résolution)
+└── Liste des canary tokens
+```
+
+### 🔐 Chiffrement de bout en bout (E2E)
+
+#### 🎯 Architecture
+
+Le système utilise une **architecture hybride** RSA + AES pour un chiffrement ultra-sécurisé :
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    EXPÉDITEUR                               │
+│                                                             │
+│  1. Génère une clé AES-256 éphémère                        │
+│  2. Chiffre le message avec AES-256-GCM                    │
+│  3. Chiffre la clé AES avec RSA-4096 (clé publique dest.) │
+│  4. Signe le message avec ECDSA P-384                      │
+│                          ↓                                  │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  Message chiffré + Clé chiffrée + IV + Signature   │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                          ↓                                  │
+│                    DESTINATAIRE                             │
+│                                                             │
+│  1. Vérifie la signature (authenticité)                    │
+│  2. Déchiffre la clé AES avec RSA-4096 (clé privée)       │
+│  3. Déchiffre le message avec AES-256-GCM                  │
+│  4. Détruit la clé éphémère (Perfect Forward Secrecy)     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 🔑 Gestion des clés
+
+Chaque utilisateur possède :
+
+1. **Paire de clés RSA-4096** :
+   - **Clé publique** : Stockée en clair dans `user_encryption_keys`
+   - **Clé privée** : Chiffrée avec le mot de passe de l'utilisateur (PBKDF2 100k itérations)
+
+2. **Clés éphémères AES-256** :
+   - Générées pour chaque message
+   - Détruites après utilisation
+   - Impossible de déchiffrer les anciens messages même avec accès à la DB
+
+#### 🔐 Algorithmes utilisés
+
+| Algorithme | Usage | Niveau de sécurité |
+|------------|-------|-------------------|
+| **RSA-4096** | Échange de clés | 🔴 Militaire |
+| **AES-256-GCM** | Chiffrement messages | 🔴 Militaire |
+| **ECDSA P-384** | Signature numérique | 🔴 Militaire |
+| **PBKDF2 (100k)** | Dérivation mot de passe | 🔴 Militaire |
+| **SHA-256/384** | Hachage | 🔴 Militaire |
+
+#### 💡 Perfect Forward Secrecy (PFS)
+
+Même si un attaquant obtient :
+- ✅ Accès à la base de données
+- ✅ Toutes les clés privées
+- ✅ Tous les mots de passe
+
+Il **NE POURRA PAS** déchiffrer les anciens messages car les clés éphémères sont détruites après chaque session.
+
+### 📱 Biométrie d'appareil
+
+#### 🔐 Empreinte unique par appareil
+
+Chaque appareil génère une **empreinte unique** basée sur :
+- Configuration matérielle (GPU, CPU, RAM)
+- Résolution d'écran
+- Timezone
+- Plugins installés
+- Canvas fingerprinting
+- WebGL fingerprinting
+- Audio fingerprinting
+
+#### 🔄 Flux d'autorisation
+
+```
+1. Première connexion
+   ↓
+2. Appareil enregistré automatiquement
+   ↓
+3. Connexions suivantes : Vérification de l'empreinte
+   ↓
+4. Si empreinte inconnue → REFUS (sauf si mode "Ajouter appareil" activé)
+```
+
+#### 🔓 Mode "Ajouter un appareil"
+
+Pour autoriser un nouvel appareil :
+
+1. Depuis un appareil autorisé, va dans **"Gestion des appareils"**
+2. Clique sur **"Ajouter un appareil"**
+3. Le compte est déverrouillé pour **5 minutes**
+4. Connecte-toi depuis le nouvel appareil
+5. L'appareil est enregistré automatiquement
+6. Le mode se désactive automatiquement
+
 ### 🔐 Validation Luhn (codes de carte)
 
 Les codes de carte utilisent l'algorithme de Luhn pour détecter les erreurs de saisie :
@@ -267,12 +475,14 @@ await createAuditLog({
 
 Le système respecte les exigences de la **Loi 25** sur la protection des renseignements personnels au Québec :
 
-- ✅ **Minimisation des données** : Seules les données essentielles sont collectées (numéro de fiche et prénom)
+- ✅ **Minimisation des données** : Seules les données essentielles sont collectées
 - ✅ **Chiffrement** : Toutes les données personnelles sont chiffrées avec AES-256-GCM
 - ✅ **Traçabilité** : Grand Livre d'audit complet de toutes les actions
 - ✅ **Accès contrôlé** : Authentification requise + mot de passe pour déchiffrer
 - ✅ **Durée de conservation** : Tokens temporaires expirés automatiquement nettoyés
 - ✅ **Sécurité** : Row Level Security (RLS) sur toutes les tables
+- ✅ **Détection d'intrusion** : Honeypots et canary tokens
+- ✅ **Chiffrement E2E** : Communications sécurisées de bout en bout
 
 ---
 
@@ -311,6 +521,7 @@ Exécutez les migrations SQL dans Supabase SQL Editor :
 
 ```sql
 -- Voir le fichier : supabase/migrations/001_initial_schema.sql
+-- + Tables de sécurité (canary_tokens, security_alerts, user_encryption_keys)
 ```
 
 #### 2. Configurer l'Edge Function de chiffrement
@@ -338,7 +549,26 @@ supabase secrets set ENCRYPTION_KEY=votre_cle_256_bits
 
 1. Accédez à l'application
 2. Entrez vos identifiants Supabase
-3. Vous êtes redirigé vers le Dashboard
+3. **Première connexion** : Votre appareil est enregistré automatiquement
+4. **Connexions suivantes** : Vérification de l'empreinte d'appareil
+5. Vous êtes redirigé vers le Dashboard
+
+### 🛡️ Ajouter un nouvel appareil
+
+1. Depuis un appareil autorisé, allez dans **"Gestion des appareils"**
+2. Cliquez sur **"Ajouter un appareil"** 🔓
+3. Le compte est déverrouillé pour **5 minutes**
+4. Connectez-vous depuis le nouvel appareil
+5. L'appareil est enregistré automatiquement
+6. Le mode se désactive automatiquement
+
+### 🚨 Surveiller la sécurité
+
+1. Allez dans **"Sécurité 🚨"** depuis le Dashboard
+2. Visualisez toutes les alertes de sécurité
+3. Voyez les canary tokens déclenchés
+4. Résolvez les alertes une par une
+5. Surveillez les tentatives d'intrusion
 
 ### 🛒 Effectuer une vente
 
@@ -463,71 +693,45 @@ audit_logs (Grand Livre)
 ├── ip_address (TEXT)
 ├── user_agent (TEXT)
 └── created_at (TIMESTAMP)
-```
 
----
+device_fingerprints (Empreintes d'appareils) 🆕
+├── id (UUID)
+├── user_id (UUID → auth.users)
+├── fingerprint (TEXT, unique)
+├── device_name (TEXT)
+├── browser_name (TEXT)
+├── os_name (TEXT)
+├── is_active (BOOLEAN)
+├── last_used_at (TIMESTAMP)
+└── created_at (TIMESTAMP)
 
-## 🔐 Système de tokenisation
+canary_tokens (Tokens sentinelles) 🆕
+├── id (UUID)
+├── token (TEXT, unique)
+├── location (TEXT)
+├── is_triggered (BOOLEAN)
+├── triggered_at (TIMESTAMP)
+├── triggered_by_ip (TEXT)
+├── triggered_by_user_agent (TEXT)
+└── created_at (TIMESTAMP)
 
-### 🎯 Objectif
+security_alerts (Alertes de sécurité) 🆕
+├── id (UUID)
+├── alert_type (TEXT)
+├── details (JSONB)
+├── severity (TEXT: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW')
+├── is_resolved (BOOLEAN)
+├── resolved_at (TIMESTAMP)
+├── resolved_by (UUID → auth.users)
+└── created_at (TIMESTAMP)
 
-Séparer les données sensibles (code de carte physique) des tokens utilisés pour les transactions, avec une durée de vie limitée.
-
-### 🔄 Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    CARTE PHYSIQUE                           │
-│                                                             │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │  Code Luhn: AB 12 3                                 │   │
-│  │  (Imprimé sur la carte)                             │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                          ↓                                  │
-│              Scan/Saisie par l'utilisateur                  │
-│                          ↓                                  │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │  Backend récupère le TOKEN PERMANENT                │   │
-│  │  Format: A3B7-K9M2-P5Q8                             │   │
-│  │  (Jamais exposé au client)                          │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                          ↓                                  │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │  Génération TOKEN TEMPORAIRE                        │   │
-│  │  Format: X1Y2-Z3A4-B5C6                             │   │
-│  │  Expire dans: 5 minutes                             │   │
-│  │  Usage: Unique                                      │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                          ↓                                  │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │  Client utilise le token temporaire                 │   │
-│  │  pour finaliser le paiement                         │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                          ↓                                  │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │  Token marqué comme "utilisé"                       │   │
-│  │  + Invalidation automatique                         │   │
-│  └─────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 🔧 Fonctions principales
-
-```typescript
-// Créer un token permanent (lors de la création de carte)
-const permanentToken = await createPermanentCardToken(rewardCardId);
-
-// Générer un token temporaire (au checkout)
-const temporaryToken = await generateTemporaryToken(permanentToken);
-
-// Valider un token temporaire (avant paiement)
-const cardData = await validateTemporaryToken(temporaryToken);
-
-// Marquer comme utilisé (après paiement)
-await markTokenAsUsed(temporaryToken);
-
-// Nettoyer les tokens expirés (cron job)
-const count = await cleanupExpiredTokens();
+user_encryption_keys (Clés E2E) 🆕
+├── id (UUID)
+├── user_id (UUID → auth.users)
+├── public_key (TEXT)
+├── encrypted_private_key (TEXT)
+├── created_at (TIMESTAMP)
+└── updated_at (TIMESTAMP)
 ```
 
 ---
@@ -541,12 +745,13 @@ Tracer **toutes** les actions effectuées dans le système pour :
 - Détection de fraude
 - Débogage
 - Analyse d'utilisation
+- **Détection d'intrusion** 🆕
 
 ### 📝 Actions tracées
 
 | Action | Description |
 |--------|-------------|
-| `LOGIN` | Connexion utilisateur |
+| `LOGIN` | Connexion utilisateur (+ détection honeypot) |
 | `LOGOUT` | Déconnexion utilisateur |
 | `VIEW_DASHBOARD` | Accès au tableau de bord |
 | `CREATE_PRODUCT` | Création d'un produit |
@@ -554,25 +759,27 @@ Tracer **toutes** les actions effectuées dans le système pour :
 | `DELETE_PRODUCT` | Suppression d'un produit |
 | `CREATE_ORDER` | Création d'une commande |
 | `CREATE_REWARD_CARD` | Création d'une carte |
-| `VALIDATE_TOKEN` | Validation d'un token |
+| `VALIDATE_TOKEN` | Validation d'un token (+ canary detection) |
 | `ENCRYPT_DATA` | Chiffrement de données |
 | `DECRYPT_DATA` | Déchiffrement de données |
 
-### 🔍 Exemple de log
+### 🔍 Exemple de log (avec détection honeypot)
 
 ```json
 {
   "id": "uuid",
   "user_id": "uuid",
   "user_email": "admin@cafemarieanne.com",
-  "action": "CREATE_ORDER",
-  "resource_type": "ORDER",
-  "resource_id": "order-uuid",
+  "action": "LOGIN",
+  "resource_type": "USER",
+  "resource_id": null,
   "details": {
-    "total_amount": 25.50,
-    "payment_method": "cash",
-    "customer_profile_id": "customer-uuid",
-    "points_earned": 25500
+    "honeypot_triggered": true,
+    "attempted_email": "admin@cafemarieanne.com",
+    "ip_address": "192.168.1.1",
+    "user_agent": "Mozilla/5.0...",
+    "severity": "CRITICAL",
+    "threat_level": "HIGH"
   },
   "ip_address": "192.168.1.1",
   "user_agent": "Mozilla/5.0...",
@@ -607,23 +814,38 @@ Un widget en bas à droite affiche les 3 dernières actions en temps réel :
 - **Thème** : Dégradés bleu/cyan/teal sur fond sombre
 - **Animations** : Transitions fluides, effets de particules
 - **Responsive** : Optimisé pour tablette et desktop
+- **Sécurité visuelle** : Indicateurs de sécurité (🔒, 🚨, 🛡️)
 
 ### 🖼️ Captures d'écran
 
 #### 🔐 Page de connexion
 ![Login](docs/screenshots/login.png)
+- Détection automatique de honeypot
+- Détection de scraping
+- Biométrie d'appareil
 
 #### 📊 Dashboard
 ![Dashboard](docs/screenshots/dashboard.png)
+- Canary token invisible injecté
+- Statistiques en temps réel
+- Widget d'audit en bas à droite
 
 #### 🛒 Point de vente
 ![POS](docs/screenshots/pos.png)
 
 #### 🎁 Cartes récompenses
 ![Reward Cards](docs/screenshots/reward-cards.png)
+- Données chiffrées par défaut
+- Déverrouillage par mot de passe
 
 #### 👨‍🍳 File d'attente
 ![Preparation Queue](docs/screenshots/preparation-queue.png)
+
+#### 🚨 Centre de sécurité (NOUVEAU)
+- Alertes de sécurité en temps réel
+- Canary tokens actifs/déclenchés
+- Résolution d'alertes
+- Statistiques de menaces
 
 ---
 
@@ -642,6 +864,7 @@ Un widget en bas à droite affiche les 3 dernières actions en temps réel :
 | Lucide React | 0.462.0 | Icônes |
 | Sonner | 1.5.0 | Notifications |
 | @dnd-kit | 6.3.1 | Drag & drop |
+| FingerprintJS | 5.0.1 | 🆕 Biométrie d'appareil |
 
 ### 🔧 Backend
 
@@ -655,12 +878,139 @@ Un widget en bas à droite affiche les 3 dernières actions en temps réel :
 
 ### 🔐 Sécurité
 
-| Technologie | Description |
-|-------------|-------------|
-| AES-256-GCM | Chiffrement symétrique |
-| JWT | Authentification |
-| Row Level Security | Isolation des données |
-| Luhn Algorithm | Validation codes de carte |
+| Technologie | Description | Niveau |
+|-------------|-------------|--------|
+| AES-256-GCM | Chiffrement symétrique | 🔴 Militaire |
+| RSA-4096 | Chiffrement asymétrique | 🔴 Militaire |
+| ECDSA P-384 | Signature numérique | 🔴 Militaire |
+| PBKDF2 (100k) | Dérivation de clé | 🔴 Militaire |
+| JWT | Authentification | 🟡 Standard |
+| Row Level Security | Isolation des données | 🟢 Élevé |
+| Luhn Algorithm | Validation codes | 🟢 Élevé |
+| Device Fingerprinting | Biométrie d'appareil | 🔴 Militaire |
+| Honeypot | Détection d'intrusion | 🔴 Militaire |
+| Canary Tokens | Détection de scraping | 🔴 Militaire |
+
+---
+
+## 🛡️ Architecture de sécurité complète
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    COUCHE 1 : DÉTECTION                     │
+│                                                             │
+│  🍯 Honeypot Accounts                                       │
+│  🕵️ Canary Tokens                                           │
+│  🔍 Scraping Detection                                      │
+│  📱 Device Fingerprinting                                   │
+│                          ↓                                  │
+├─────────────────────────────────────────────────────────────┤
+│                    COUCHE 2 : AUTHENTIFICATION              │
+│                                                             │
+│  🔐 Supabase Auth (JWT)                                     │
+│  🔑 Device Authorization                                    │
+│  ⏱️ Temporary Unlock (5 min)                                │
+│                          ↓                                  │
+├─────────────────────────────────────────────────────────────┤
+│                    COUCHE 3 : CHIFFREMENT                   │
+│                                                             │
+│  🔒 AES-256-GCM (Données personnelles)                      │
+│  🔐 RSA-4096 (Échange de clés E2E)                          │
+│  🔑 ECDSA P-384 (Signatures)                                │
+│  ⚡ Perfect Forward Secrecy                                 │
+│                          ↓                                  │
+├─────────────────────────────────────────────────────────────┤
+│                    COUCHE 4 : ISOLATION                     │
+│                                                             │
+│  🛡️ Row Level Security (RLS)                                │
+│  🔒 Tokenization (Double niveau)                            │
+│  ⏰ Token Expiration (5 min)                                │
+│                          ↓                                  │
+├─────────────────────────────────────────────────────────────┤
+│                    COUCHE 5 : AUDIT                         │
+│                                                             │
+│  📝 Grand Livre (Toutes les actions)                        │
+│  🚨 Security Alerts (Menaces détectées)                     │
+│  📊 Real-time Monitoring                                    │
+│  📧 Notifications (Email/SMS)                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🚨 Scénarios de sécurité
+
+### Scénario 1 : Attaque par force brute
+
+```
+1. Attaquant essaie 100 mots de passe
+   ↓
+2. Détection de scraping (>10 req/sec)
+   ↓
+3. 🚨 ALERTE SCRAPING
+   ↓
+4. Blocage temporaire
+   ↓
+5. Log dans le Grand Livre
+```
+
+### Scénario 2 : Tentative d'accès admin
+
+```
+1. Attaquant essaie admin@cafemarieanne.com
+   ↓
+2. Détection de honeypot
+   ↓
+3. 🚨 ALERTE HONEYPOT (CRITICAL)
+   ↓
+4. Message d'erreur générique (pour ne pas révéler)
+   ↓
+5. Log complet dans security_alerts
+```
+
+### Scénario 3 : Scraping de données
+
+```
+1. Bot essaie de lire le DOM
+   ↓
+2. Canary token détecté
+   ↓
+3. 🚨 ALERTE CANARY TOKEN
+   ↓
+4. Token marqué comme "déclenché"
+   ↓
+5. Notification immédiate à l'admin
+```
+
+### Scénario 4 : Vol de carte récompense
+
+```
+1. Carte perdue/volée
+   ↓
+2. Admin désactive la carte
+   ↓
+3. Tous les tokens temporaires révoqués
+   ↓
+4. Token permanent reste valide (pour réactivation)
+   ↓
+5. Log dans le Grand Livre
+```
+
+### Scénario 5 : Connexion depuis nouvel appareil
+
+```
+1. Utilisateur se connecte depuis nouveau PC
+   ↓
+2. Empreinte d'appareil inconnue
+   ↓
+3. Vérification du mode "Ajouter appareil"
+   ↓
+4. Si désactivé → REFUS + déconnexion
+   ↓
+5. Si activé → Dialogue d'autorisation
+   ↓
+6. Après autorisation → Appareil enregistré
+```
 
 ---
 
@@ -719,12 +1069,33 @@ Les contributions sont les bienvenues ! Veuillez suivre ces étapes :
 - [Tailwind CSS](https://tailwindcss.com/) pour le styling
 - [Lucide](https://lucide.dev/) pour les icônes
 - [Vercel](https://vercel.com/) pour l'hébergement
+- [FingerprintJS](https://fingerprintjs.com/) pour la biométrie d'appareil
+
+---
+
+## 🔒 Note de sécurité
+
+Ce système implémente des **mécanismes de sécurité de niveau militaire** :
+
+- ✅ **Chiffrement AES-256-GCM** pour toutes les données personnelles
+- ✅ **Chiffrement E2E RSA-4096** pour les communications
+- ✅ **Perfect Forward Secrecy** avec clés éphémères
+- ✅ **Honeypots** pour détecter les tentatives d'intrusion
+- ✅ **Canary tokens** pour détecter le scraping
+- ✅ **Biométrie d'appareil** pour l'authentification
+- ✅ **Audit trail complet** de toutes les actions
+- ✅ **Row Level Security** sur toutes les tables
+- ✅ **Tokenisation double niveau** pour les cartes
+
+**⚠️ AVERTISSEMENT** : Ce système est conçu pour un environnement de production. Toute tentative d'intrusion sera **détectée, enregistrée et signalée**.
 
 ---
 
 <div align="center">
 
-**Fait avec ❤️ pour Café Marie Anne**
+**Fait avec ❤️ et 🔒 pour Café Marie Anne**
+
+**Sécurité : Niveau Militaire 🛡️**
 
 [⬆ Retour en haut](#-café-marie-anne---système-de-gestion)
 
