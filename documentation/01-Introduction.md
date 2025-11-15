@@ -146,3 +146,46 @@ Chaque caractéristique de l'environnement opérationnel se traduit par une cont
     -   **Consistance de l'Interface :** Tous les modules partagent une charte graphique et une logique d'interaction communes. Apprendre à utiliser le Point de Vente aide à comprendre intuitivement comment fonctionne la gestion d'inventaire.
     -   **Prévention des Erreurs :** Le système est conçu pour prévenir les erreurs. Par exemple, un bouton de paiement est désactivé si le panier est vide. Le format des codes de carte est validé en temps réel pour éviter les erreurs de saisie.
     -   **Feedback Visuel Immédiat :** Chaque action de l'utilisateur (un clic, une saisie) est accompagnée d'un retour visuel immédiat (un bouton qui s'anime, un article qui apparaît dans le panier), confirmant que le système a bien enregistré l'action et renforçant la confiance de l'opérateur.
+
+---
+
+## 1.3. Public Cible de la Documentation
+
+Cette documentation a été rédigée pour servir de référence unique et complète à différents types d'intervenants, chacun ayant des besoins et des perspectives distincts. La structure modulaire de ce document permet à chaque profil de trouver rapidement les informations qui lui sont pertinentes.
+
+### 1.3.1. Profil 1 : Développeurs et Équipes de Maintenance
+
+-   **Qui sont-ils ?** Ingénieurs logiciels, développeurs frontend et backend, et toute personne chargée de maintenir, de corriger ou de faire évoluer le code source de l'application.
+-   **Quels sont leurs besoins ?** Une compréhension profonde de l'architecture technique, de la structure du code, des modèles de conception utilisés, des flux de données et de la logique métier implémentée. Ils ont besoin de guides pratiques pour configurer leur environnement de développement et comprendre comment les différents composants interagissent.
+-   **Comment la documentation les aide-t-elle ?**
+    -   Le **Chapitre 2 (Architecture Technologique)** leur fournit une vue d'ensemble de la stack et de la manière dont les pièces s'assemblent.
+    -   Le **Chapitre 3 (Guide Fonctionnel)** relie chaque fonctionnalité de l'interface utilisateur aux composants React spécifiques qui la mettent en œuvre.
+    -   Le **Chapitre 5 (Schéma de Base de Données)** est leur référence pour comprendre la structure des données avec laquelle ils interagissent.
+    -   Les sections sur les bibliothèques `lib` (ex: `crypto.ts`, `tokenization.ts`) expliquent la logique métier complexe qu'ils devront utiliser ou modifier.
+
+### 1.3.2. Profil 2 : Administrateurs Système et Opérations (DevOps)
+
+-   **Qui sont-ils ?** Les responsables du déploiement, de la surveillance, de la sauvegarde et de la maintenance de l'application en environnement de production.
+-   **Quels sont leurs besoins ?** Des instructions claires sur la configuration de l'infrastructure, la gestion des variables d'environnement (clés API, secrets), les procédures de déploiement des mises à jour (frontend et Edge Functions), et les plans de reprise après sinistre.
+-   **Comment la documentation les aide-t-elle ?**
+    -   Le **Chapitre 7 (Guide de Déploiement et d'Opérations)** est leur manuel principal.
+    -   La section sur l'architecture Supabase (Chapitre 2) leur explique quels services sont utilisés et comment ils sont configurés.
+    -   Les informations sur la gestion des secrets, comme la `ENCRYPTION_KEY` pour l'Edge Function, sont critiques pour la mise en production sécurisée.
+
+### 1.3.3. Profil 3 : Responsables de la Sécurité de l'Information (RSSI)
+
+-   **Qui sont-ils ?** Professionnels de la cybersécurité, auditeurs de conformité, et toute personne chargée d'évaluer la posture de sécurité du système et de s'assurer qu'il respecte les réglementations en vigueur (notamment la Loi 25).
+-   **Quels sont leurs besoins ?** Une description exhaustive de toutes les mesures de sécurité implémentées, des algorithmes de chiffrement utilisés, des flux de données sensibles, des mécanismes de contrôle d'accès, et des capacités de détection d'intrusion et d'audit.
+-   **Comment la documentation les aide-t-elle ?**
+    -   Le **Chapitre 4 (Architecture de Sécurité)** est rédigé spécifiquement pour eux. Il détaille chaque couche de défense, du chiffrement des données à la biométrie d'appareil, en passant par les honeypots.
+    -   Le **Chapitre 6 (Système d'Audit)** leur montre comment le système garantit la traçabilité et leur fournit les outils pour investiguer les incidents.
+    -   L'analyse de la conformité à la Loi 25 (dans ce chapitre) leur fournit un point de départ pour leurs audits de conformité.
+
+### 1.3.4. Profil 4 : Gestionnaires et Parties Prenantes Métier
+
+-   **Qui sont-ils ?** La direction de l'école, les gestionnaires du café, et toute personne non technique qui a besoin de comprendre ce que le logiciel fait, pourquoi il le fait, et quelle valeur il apporte, sans se perdre dans les détails techniques.
+-   **Quels sont leurs besoins ?** Une vue d'ensemble de haut niveau des fonctionnalités, des bénéfices pour l'entreprise, et de la manière dont le système répond aux objectifs stratégiques. Ils s'intéressent au "quoi" et au "pourquoi", plutôt qu'au "comment".
+-   **Comment la documentation les aide-t-elle ?**
+    -   Ce **Chapitre 1 (Introduction et Vision d'Ensemble)** est leur point d'entrée principal. Il explique la mission, les objectifs et le contexte sans jargon technique excessif.
+    -   Le **Chapitre 3 (Guide Fonctionnel)** peut être parcouru pour comprendre l'étendue des fonctionnalités du point de vue de l'utilisateur final.
+    -   Les sections sur les rapports et le tableau de bord leur montrent comment ils peuvent utiliser le système pour prendre des décisions éclairées.
