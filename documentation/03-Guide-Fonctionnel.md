@@ -6,10 +6,13 @@ Ce chapitre est le cœur de la documentation. Il offre une exploration exhaustiv
 
 ## 3.1. Module d'Authentification et de Connexion (`/`)
 
-La page de connexion est la porte d'entrée sécurisée du système. Elle est bien plus qu'un simple formulaire ; c'est la première ligne de défense de l'application.
+La page de connexion est la porte d'entrée sécurisée du système. Elle est bien plus qu'un simple formulaire ; c'est la première ligne de défense de l'application, intégrant des mécanismes de détection d'intrusion et de vérification biométrique d'appareil.
 
--   **Page Principale :** `src/pages/Index.tsx`
--   **Composant Clé :** `src/components/futuristic-login.tsx`
+-   **Fichiers Clés :**
+    -   `src/pages/Index.tsx` (Conteneur de la page)
+    -   `src/components/futuristic-login.tsx` (Logique principale du formulaire)
+    -   `src/lib/device-fingerprint.ts` (Logique de biométrie d'appareil)
+    -   `src/lib/honeypot.ts` (Logique de détection d'intrusion)
 
 ### 3.1.1. Interface de Connexion (`FuturisticLogin.tsx`)
 
