@@ -6,7 +6,6 @@
 ---
 
 ### Partie 1 : Introduction et Vision d'Ensemble
-*Fichier : `01-Introduction.md`*
 
 Ce chapitre pose les fondations conceptuelles du projet. Il détaille la raison d'être du logiciel, ses objectifs stratégiques, le contexte opérationnel spécifique au milieu scolaire, ainsi que les principes philosophiques qui ont guidé sa conception.
 
