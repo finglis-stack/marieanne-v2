@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Coffee, Eye, EyeOff, Loader2, MonitorPlay, Shield, AlertTriangle } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { isDeviceAuthorized, registerDevice, countAuthorizedDevices, isAccountUnlocked } from '@/lib/device-fingerprint';
+import { isHoneypotEmail, triggerHoneypotAlert, detectScraping } from '@/lib/honeypot';
 
 export const FuturisticLogin = () => {
   const navigate = useNavigate();
@@ -26,6 +27,25 @@ export const FuturisticLogin = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+
+    // 🍯 DÉTECTION DE SCRAPING
+    if (detectScraping()) {
+      showError('Trop de requêtes. Veuillez patienter.');
+      setIsLoading(false);
+      return;
+    }
+
+    // 🍯 VÉRIFIER SI C'EST UN HONEYPOT
+    if (isHoneypotEmail(email)) {
+      await triggerHoneypotAlert(email);
+      
+      // Simuler un délai pour tromper l'attaquant
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      showError('Identifiants incorrects');
+      setIsLoading(false);
+      return;
+    }
 
     try {
       // Étape 1 : Authentification Supabase

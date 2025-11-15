@@ -215,7 +215,7 @@ export const encryptMessage = async (
   // 2. Chiffrer le message avec AES
   const encoder = new TextEncoder();
   const messageBuffer = encoder.encode(message);
-  const iv = window.crypto.subtle.getRandomValues(new Uint8Array(12));
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
 
   const encryptedData = await window.crypto.subtle.encrypt(
     {
