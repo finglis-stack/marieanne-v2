@@ -91,3 +91,58 @@ La mission se traduit par quatre axes d'objectifs mesurables.
 -   **Objectif 4.2 :** Permettre la génération de rapports de ventes PDF personnalisables par période et par métrique.
 -   **Objectif 4.3 :** Permettre l'export de données de transaction brutes au format CSV pour des analyses approfondies.
 -   **Objectif 4.4 :** Identifier les produits les plus populaires pour optimiser les offres et la gestion des stocks.
+
+---
+
+## 1.2. Contexte d'Application : Le Café Scolaire
+
+Le Système de Gestion du Café Marie Anne n'est pas un logiciel générique ; il a été forgé sur mesure pour répondre aux défis uniques et aux contraintes spécifiques d'un environnement de café scolaire. Comprendre ce contexte est essentiel pour apprécier la pertinence des choix architecturaux et fonctionnels qui ont été faits.
+
+### 1.2.1. Analyse de l'Environnement Opérationnel
+
+L'environnement opérationnel d'un café scolaire se distingue radicalement de celui d'un commerce traditionnel. Ses caractéristiques principales sont :
+
+-   **Flux de Clientèle Pulsé :** L'activité n'est pas linéaire. Elle est concentrée en pics d'achalandage extrêmement intenses et de très courte durée (typiquement 15-20 minutes), correspondant aux pauses entre les cours et à la période du déjeuner. Le reste du temps, l'activité est quasi nulle.
+-   **Clientèle Captive et Répétitive :** Les clients sont principalement les élèves et le personnel de l'école. Ce sont des clients réguliers, ce qui rend un programme de fidélité particulièrement pertinent.
+-   **Transactions de Faible Montant :** La majorité des transactions sont de petites sommes (un café, une collation), ce qui exige un processus de paiement ultra-rapide pour maintenir le flux.
+-   **Personnel Opérateur :** Les opérateurs du point de vente sont souvent des élèves bénévoles ou des membres du personnel avec une disponibilité limitée pour la formation. Le taux de rotation peut être élevé.
+-   **Infrastructure Technologique :** Le système opère sur le réseau Wi-Fi de l'école, qui peut être sujet à des fluctuations de performance, et sur du matériel standard (typiquement une tablette ou un ordinateur portable).
+
+### 1.2.2. Contraintes Spécifiques et Implications Techniques
+
+Chaque caractéristique de l'environnement opérationnel se traduit par une contrainte technique qui a directement influencé la conception du logiciel.
+
+#### 1.2.2.1. Gestion des Pics d'Achalandage
+
+-   **Contrainte :** Le système doit pouvoir traiter un grand nombre de transactions en un temps très court sans aucun ralentissement. Chaque seconde compte.
+-   **Implications Techniques :**
+    -   **Optimisation de l'Interface (UI/UX) :** L'interface du Point de Vente a été conçue pour minimiser le nombre d'interactions. Les produits sont organisés par catégories visuelles, et l'ajout au panier se fait en un seul clic. Le processus de paiement est rationalisé pour être complété en quelques secondes.
+    -   **Performance du Frontend :** L'application est construite avec React et optimisée pour des rendus rapides. La gestion de l'état local est conçue pour que l'interface reste fluide et réactive, même si le réseau est lent.
+    -   **Scalabilité du Backend :** L'utilisation de Supabase, une plateforme serverless, garantit que le backend peut absorber les pics de charge sans intervention manuelle. La base de données PostgreSQL est capable de gérer des milliers de requêtes concurrentes.
+    -   **Réactivité Asynchrone :** Les opérations qui pourraient prendre du temps (comme la communication avec la base de données) sont gérées de manière asynchrone, sans jamais bloquer l'interface utilisateur. L'opérateur peut continuer à ajouter des articles au panier pendant que les données de la commande précédente sont envoyées au serveur.
+
+#### 1.2.2.2. Nature de la Clientèle (Mineurs)
+
+-   **Contrainte :** La majorité des clients sont des mineurs. La collecte et le stockage de leurs données personnelles sont soumis à des règles de confidentialité et de sécurité extrêmement strictes.
+-   **Implications Techniques :**
+    -   **Principe de Minimisation des Données :** Le système ne collecte que le strict minimum d'informations nécessaires au fonctionnement du programme de fidélité : un prénom et un numéro de fiche. Aucune information sensible comme le nom de famille, l'adresse ou la date de naissance n'est demandée.
+    -   **Chiffrement Obligatoire :** C'est cette contrainte qui a rendu le chiffrement AES-256-GCM non négociable. Il garantit que même en cas d'accès non autorisé à la base de données, les données personnelles des élèves restent illisibles et donc protégées.
+    -   **Pseudonymisation :** Le numéro de fiche agit comme un pseudonyme, dissociant l'identité de l'élève des transactions dans la mesure du possible.
+
+#### 1.2.2.3. Exigences Réglementaires (Loi 25)
+
+-   **Contrainte :** Le système doit être en pleine conformité avec la Loi 25 du Québec, qui impose des obligations sévères en matière de protection des renseignements personnels.
+-   **Implications Techniques :**
+    -   **Sécurité par Conception ("Privacy by Design") :** La sécurité n'a pas été ajoutée après coup. Des fonctionnalités comme le chiffrement, la biométrie d'appareil et le Grand Livre d'audit ont été intégrées dès les premières phases de conception pour répondre aux exigences de la loi.
+    -   **Traçabilité et Audit :** Le Grand Livre d'audit (`audit_logs`) est une réponse directe à l'exigence de traçabilité. Il enregistre qui a accédé à quoi, et quand, fournissant un historique complet en cas d'incident de sécurité ou de demande d'accès.
+    -   **Contrôle d'Accès :** La combinaison de l'authentification Supabase, des politiques RLS et de la biométrie d'appareil garantit que seules les personnes autorisées, depuis des appareils autorisés, peuvent accéder aux données, comme l'exige la loi.
+    -   **Gestion du Consentement :** Bien que le consentement soit implicite lors de l'inscription au programme, l'architecture permet de tracer ce consentement et de gérer les droits des individus (droit à l'oubli, droit d'accès), des fonctionnalités qui pourront être développées ultérieurement.
+
+#### 1.2.2.4. Rotation du Personnel et Simplicité d'Utilisation
+
+-   **Contrainte :** Le personnel peut changer fréquemment et dispose de peu de temps pour la formation. Le système doit être utilisable avec une formation minimale, voire nulle.
+-   **Implications Techniques :**
+    -   **Conception Centrée sur l'Utilisateur (UCD) :** L'interface a été conçue en se mettant à la place d'un opérateur novice. Les actions sont guidées, les boutons sont larges et clairs, et les flux de travail sont logiques et prévisibles.
+    -   **Consistance de l'Interface :** Tous les modules partagent une charte graphique et une logique d'interaction communes. Apprendre à utiliser le Point de Vente aide à comprendre intuitivement comment fonctionne la gestion d'inventaire.
+    -   **Prévention des Erreurs :** Le système est conçu pour prévenir les erreurs. Par exemple, un bouton de paiement est désactivé si le panier est vide. Le format des codes de carte est validé en temps réel pour éviter les erreurs de saisie.
+    -   **Feedback Visuel Immédiat :** Chaque action de l'utilisateur (un clic, une saisie) est accompagnée d'un retour visuel immédiat (un bouton qui s'anime, un article qui apparaît dans le panier), confirmant que le système a bien enregistré l'action et renforçant la confiance de l'opérateur.
