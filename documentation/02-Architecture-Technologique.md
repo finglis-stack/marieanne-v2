@@ -6,7 +6,7 @@ Ce chapitre plonge au cœur de la conception technique du Système de Gestion du
 
 ## 2.1. Vue d'Ensemble de l'Architecture
 
-L'architecture du système est conçue pour être à la fois moderne, scalable et facile à maintenir. Elle repose sur une séparation claire des responsabilités entre le client (frontend) et les services backend, en adoptant une approche *Backend-as-a-Service* (BaaS) fournie par Supabase.
+L'architecture du système est conçue pour être à la fois moderne, scalable et facile à maintenir. Elle repose sur une séparation claire des responsabilités entre le client (frontend) et les services backend, en adoptant une approche **Backend-as-a-Service (BaaS)** fournie par Supabase. Ce choix stratégique permet de déléguer la gestion complexe de l'infrastructure (serveurs, bases de données, scaling) pour se concentrer sur la logique métier et la sécurité applicative.
 
 ### 2.1.1. Schéma d'Architecture Logique à Trois Niveaux
 
@@ -15,49 +15,55 @@ L'architecture peut être visualisée comme une série de couches logiques, où 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     NIVEAU 1 : CLIENT (Frontend)            │
-│                                                             │
-│   ● Application React (Vite + TypeScript)                   │
-│   ● Interface utilisateur (Tailwind CSS + shadcn/ui)        │
-│   ● Logique de présentation et gestion de l'état client     │
-│   ● Logique de sécurité côté client (Chiffrement E2E, etc.) │
-│                                                             │
+│   - Application React 18 (SPA)                              │
+│   - Build Tool: Vite avec TypeScript                        │
+│   - UI: Tailwind CSS + shadcn/ui                            │
+│   - State Management: React Hooks + @tanstack/react-query   │
+│   - Logique de Sécurité Client-Side:                        │
+│     - e2e-encryption.ts (Gestion des clés RSA)              │
+│     - device-fingerprint.ts (Biométrie d'appareil)          │
+│     - honeypot.ts (Déclencheurs d'alertes)                  │
 └─────────────────────────────┬───────────────────────────────┘
-                              │ (HTTPS/WSS via API Supabase)
+                              │ API Calls (HTTPS/WSS)
+                              │ - Authentification via JWT Bearer Token
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │                  NIVEAU 2 : PASSERELLE API (Supabase)       │
-│                                                             │
-│   ● PostgREST API (Accès direct à la base de données)       │
-│   ● GoTrue API (Authentification)                           │
-│   ● Storage API (Gestion des fichiers)                      │
-│   ● Realtime API (WebSockets pour les mises à jour en direct)│
-│   ● Edge Functions Gateway (Invocation des fonctions Deno)  │
-│                                                             │
+│   - Point d'Entrée Unique pour toutes les requêtes          │
+│   - Validation automatique des JWT                          │
+│   - Application des politiques de Rate Limiting             │
+│   - Routage des requêtes vers les services appropriés :     │
+│     - PostgREST API → PostgreSQL (CRUD)                     │
+│     - GoTrue API → Service d'Authentification               │
+│     - Storage API → Gestion des fichiers                    │
+│     - Realtime API → WebSockets pour PostgreSQL             │
+│     - Edge Functions Gateway → Fonctions Deno               │
 └─────────────────────────────┬───────────────────────────────┘
-                              │ (Appels internes sécurisés)
+                              │ Appels internes sécurisés au sein du VPC Supabase
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │                  NIVEAU 3 : SERVICES BACKEND (Supabase)     │
-│                                                             │
-│   ● Base de données PostgreSQL avec Row Level Security (RLS)│
-│   ● Service d'Authentification (Gestion des utilisateurs)   │
-│   ● Service de Stockage (Bucket pour images)                │
-│   ● Environnement d'exécution Deno pour les Edge Functions  │
-│                                                             │
+│   - Base de Données PostgreSQL 15 :                         │
+│     - Schéma de données relationnel                         │
+│     - Politiques Row Level Security (RLS) sur TOUTES les tables │
+│   - Service d'Authentification :                            │
+│     - Table `auth.users` gérée par Supabase                 │
+│   - Service de Stockage d'Objets :                          │
+│     - Bucket `product-images` avec politiques d'accès       │
+│   - Environnement d'exécution Deno pour les Edge Functions :│
+│     - `crypto-service` : Accès exclusif à `ENCRYPTION_KEY`  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### 2.1.2. Description des Composants Majeurs
 
-1.  **Application Cliente (Frontend)** : C'est l'unique point d'interaction pour les utilisateurs. Construite en **React**, elle est responsable de toute la logique de présentation. Elle ne fait aucune confiance implicite au backend et implémente sa propre couche de logique de sécurité (ex: validation de format, gestion des clés E2E). Elle communique avec Supabase via une API RESTful et des WebSockets.
+1.  **Application Cliente (Frontend)** : C'est l'unique point d'interaction pour les utilisateurs. Construite en **React**, elle est responsable de toute la logique de présentation. Elle opère selon un principe de "zéro confiance" envers le backend, validant les entrées et gérant sa propre logique de sécurité (ex: validation de format de carte, gestion des clés de chiffrement E2E). Elle communique avec Supabase via une API RESTful standard et des WebSockets pour les mises à jour en temps réel.
 
-2.  **Passerelle API Supabase** : C'est le point d'entrée unique pour toutes les requêtes du client. Elle agit comme un proxy sécurisé qui route les requêtes vers le service approprié. Elle est responsable de l'application des politiques de sécurité, de la validation des JWT (JSON Web Tokens) et de la limitation du débit (rate limiting).
+2.  **Passerelle API Supabase** : C'est le gardien de l'écosystème backend. Chaque requête provenant du client doit d'abord passer par cette passerelle. Elle valide systématiquement le JWT (JSON Web Token) présent dans l'en-tête `Authorization`. Si le token est valide et non expiré, la passerelle transmet la requête au service interne approprié, en y ajoutant le contexte d'authentification de l'utilisateur. C'est cette passerelle qui applique les politiques RLS en se basant sur l'identité de l'utilisateur extraite du JWT.
 
-3.  **Services Backend Supabase** : C'est le cerveau de l'application.
-    -   **PostgreSQL** : Le cœur du système, où toutes les données sont stockées. La sécurité est renforcée par des politiques **Row Level Security (RLS)** qui garantissent que les utilisateurs ne peuvent accéder qu'à leurs propres données, même si une requête API malformée était envoyée.
-    -   **Auth** : Gère l'identité des utilisateurs, la connexion, la déconnexion et la génération des JWT.
-    -   **Storage** : Un service de stockage d'objets S3-compatible, utilisé ici pour stocker les images des produits de manière sécurisée.
-    -   **Edge Functions** : Des fonctions serverless (écrites en Deno/TypeScript) qui exécutent de la logique métier sensible dans un environnement sécurisé côté serveur. C'est ici que s'exécute notre service de chiffrement, protégeant la clé principale.
+3.  **Services Backend Supabase** : C'est le cerveau et la mémoire de l'application.
+    -   **PostgreSQL** : Le cœur du système. L'utilisation de **Row Level Security (RLS)** est non négociable et constitue la principale ligne de défense contre les fuites de données. Même si un attaquant parvenait à obtenir une clé API valide, il ne pourrait voir que les données autorisées par les politiques RLS associées à son rôle et à son ID utilisateur.
+    -   **Edge Functions** : Des fonctions serverless (écrites en Deno/TypeScript) qui s'exécutent dans un environnement isolé et sécurisé. Leur principal avantage est qu'elles peuvent accéder à des secrets (variables d'environnement) qui ne sont jamais exposés au client. Notre `crypto-service` est l'exemple parfait : il est le seul composant de toute l'architecture à connaître la clé de chiffrement `ENCRYPTION_KEY`, agissant comme un coffre-fort numérique pour les opérations de chiffrement et de déchiffrement.
 
 ---
 
@@ -67,163 +73,149 @@ Le frontend est une **Single-Page Application (SPA)** moderne, conçue pour la p
 
 ### 2.2.1. Fondations : React 18, Vite, et TypeScript
 
--   **React 18** : Utilisé pour sa puissance dans la création d'interfaces utilisateur déclaratives et basées sur les composants. Son Virtual DOM assure des mises à jour performantes de l'interface.
--   **Vite** : Sert de bundler et de serveur de développement. Il offre une expérience de développement ultra-rapide grâce à son Hot Module Replacement (HMR) natif et des temps de démarrage quasi instantanés.
--   **TypeScript** : Apporte un typage statique au projet, ce qui permet de détecter de nombreuses erreurs au moment de la compilation plutôt qu'à l'exécution. Il améliore considérablement la maintenabilité et la robustesse du code.
+-   **React 18** : Utilisé pour son modèle de composants déclaratifs qui simplifie la création d'interfaces complexes. Les hooks (`useState`, `useEffect`, `useContext`) sont utilisés pour gérer l'état local et le cycle de vie des composants.
+-   **Vite** : Choisi pour sa rapidité exceptionnelle en développement. Il utilise `esbuild` pour le pré-bundling des dépendances et sert les modules ES natifs au navigateur, ce qui résulte en un Hot Module Replacement (HMR) quasi instantané.
+-   **TypeScript** : Le projet est entièrement typé. Le `tsconfig.json` est configuré avec des options strictes (`"strict": true`) pour attraper un maximum d'erreurs potentielles (comme les `null` ou `undefined` non gérés) au moment de la compilation.
 
 ### 2.2.2. Gestion de l'État et des Données Serveur (`@tanstack/react-query`)
 
-Bien que l'état local simple soit géré avec les hooks de React (`useState`, `useEffect`), la communication avec le serveur et la gestion de cet "état serveur" sont orchestrées par `@tanstack/react-query`.
-
--   **Caching et Synchronisation :** React Query gère automatiquement le cache des données récupérées du serveur, la synchronisation en arrière-plan et la mise à jour de l'interface lorsque les données changent.
--   **Optimisation des Requêtes :** Il déduplique les requêtes identiques et fournit des mécanismes pour invalider le cache de manière ciblée, garantissant que l'interface affiche toujours des données à jour sans surcharger le backend.
+Le système fait une distinction claire entre l'état client et l'état serveur.
+-   **État Client** (ex: l'ouverture d'une modale, le contenu d'un champ de formulaire) est géré par `useState`.
+-   **État Serveur** (toutes les données provenant de Supabase) est géré par `@tanstack/react-query`. Ce choix est stratégique :
+    -   **Évite la complexité d'un store global** (comme Redux) pour des données qui sont en réalité une copie locale de la base de données.
+    -   **Fournit nativement** : le caching, la déduplication des requêtes, la mise à jour des données en arrière-plan, et la gestion des états de chargement et d'erreur pour chaque requête.
+    -   **Mutations et Invalidation du Cache** : Les opérations d'écriture (création, mise à jour, suppression) sont gérées via `useMutation`. Après une mutation réussie, les requêtes (`queries`) pertinentes sont invalidées (`queryClient.invalidateQueries`), ce qui déclenche automatiquement un rafraîchissement des données et assure que l'interface est toujours à jour.
 
 ### 2.2.3. Système de Routage (`react-router-dom`)
 
-La navigation au sein de l'application est gérée côté client par `react-router-dom`.
-
--   **Routes Déclaratives :** Les routes sont définies de manière centralisée dans le composant `App.tsx`, offrant une vue claire de toutes les pages disponibles dans l'application.
--   **Navigation Programmatique :** Le hook `useNavigate` est utilisé pour rediriger les utilisateurs après des actions comme la connexion ou la déconnexion.
--   **Paramètres d'URL :** Le hook `useParams` est utilisé pour récupérer des identifiants depuis l'URL (ex: `/reward-cards/:customerId`), permettant de créer des pages de détail dynamiques.
+-   **Routes Centralisées** : Le fichier `App.tsx` contient la définition de toutes les routes, offrant une vue d'ensemble claire de la navigation.
+-   **Protection des Routes** : Chaque page sensible (tout sauf la page de connexion) inclut une logique dans un `useEffect` qui vérifie la présence d'une session utilisateur active. Si l'utilisateur n'est pas connecté, il est immédiatement redirigé vers la page de connexion (`/`) via le hook `useNavigate`.
 
 ### 2.2.4. Système de Design (Tailwind CSS, shadcn/ui)
 
-L'esthétique et l'ergonomie de l'application reposent sur une combinaison de deux technologies :
-
--   **Tailwind CSS** : Un framework CSS "utility-first" qui permet de construire des designs complexes directement dans le HTML/JSX. Il favorise la cohérence et la rapidité de développement.
--   **shadcn/ui** : Une collection de composants d'interface utilisateur réutilisables, accessibles et personnalisables. Plutôt qu'une bibliothèque de composants traditionnelle, `shadcn/ui` fournit du code que l'on copie dans le projet, offrant un contrôle total sur le style et le comportement.
+-   **Tailwind CSS** : L'approche "utility-first" permet un prototypage rapide et assure une consistance stylistique sans avoir à écrire de CSS personnalisé. La configuration (`tailwind.config.ts`) est étendue pour inclure les couleurs et les thèmes spécifiques à l'application.
+-   **shadcn/ui** : La philosophie de `shadcn/ui` est cruciale : ce n'est pas une bibliothèque de composants, mais une collection de recettes de code. Les composants sont copiés dans le projet (`src/components/ui`), ce qui donne un contrôle total sur leur code, leur style et leur comportement, évitant la dépendance à une librairie externe et facilitant la personnalisation.
 
 ---
 
 ## 2.3. Architecture Backend (Services Supabase)
 
-Le backend est entièrement basé sur les services managés de Supabase, ce qui permet de se concentrer sur la logique métier plutôt que sur la gestion d'infrastructure.
-
 ### 2.3.1. Base de Données PostgreSQL et Politiques RLS
 
--   **PostgreSQL** : Une base de données relationnelle open-source puissante et éprouvée. Elle offre des fonctionnalités avancées comme les types de données JSONB, les transactions et les fonctions.
--   **Row Level Security (RLS)** : C'est la pierre angulaire de la sécurité des données. **Toutes les tables** ont le RLS activé. Cela signifie que par défaut, personne ne peut accéder à aucune donnée. Des politiques explicites sont ensuite créées pour autoriser des actions spécifiques (SELECT, INSERT, UPDATE, DELETE) à des utilisateurs spécifiques (ex: uniquement l'utilisateur authentifié dont l'ID correspond à `user_id`).
+-   **PostgreSQL** : La puissance de PostgreSQL est exploitée via des types de données avancés comme `JSONB` (pour stocker les `items` d'une commande) et `TIMESTAMP WITH TIME ZONE` (pour une gestion précise des dates).
+-   **Row Level Security (RLS)** : C'est la fonctionnalité de sécurité la plus importante. Chaque requête API (via PostgREST) est exécutée dans le contexte de l'utilisateur authentifié. Les politiques RLS agissent comme une clause `WHERE` invisible et inaltérable ajoutée à chaque requête.
 
-    *Exemple de politique RLS sur la table `products` :*
+    *Exemple de politique RLS détaillée sur la table `customer_profiles` :*
     ```sql
-    CREATE POLICY "products_select_policy" ON products
-    FOR SELECT TO authenticated USING (auth.uid() = user_id);
+    -- Activer RLS sur la table
+    ALTER TABLE public.customer_profiles ENABLE ROW LEVEL SECURITY;
+
+    -- Politique de SELECT : Un utilisateur authentifié ne peut voir que les profils
+    -- qui sont liés à des commandes qu'il a lui-même créées.
+    -- (Note: Dans notre cas, l'accès est plus large car l'admin voit tout,
+    -- mais c'est un exemple de politique restrictive)
+    CREATE POLICY "Users can view profiles linked to their orders"
+    ON public.customer_profiles FOR SELECT
+    TO authenticated
+    USING (
+      id IN (
+        SELECT customer_profile_id FROM orders WHERE user_id = auth.uid()
+      )
+    );
     ```
+    La fonction `auth.uid()` est fournie par Supabase et retourne l'UUID de l'utilisateur actuellement authentifié.
 
 ### 2.3.2. Service d'Authentification (Supabase Auth)
 
--   **Gestion des Identités :** Supabase Auth gère l'inscription, la connexion (email/mot de passe), la réinitialisation de mot de passe et la gestion des sessions utilisateur.
--   **JWT (JSON Web Tokens) :** Après une connexion réussie, Supabase Auth génère un JWT qui est stocké de manière sécurisée côté client. Ce token est ensuite inclus dans chaque requête API pour prouver l'identité de l'utilisateur. La passerelle API de Supabase valide automatiquement ce token avant d'autoriser l'accès aux autres services.
+-   **Cycle de Vie du JWT** :
+    1.  `signInWithPassword()` : L'utilisateur envoie email/mdp.
+    2.  Supabase Auth valide et génère un JWT signé avec un secret serveur.
+    3.  Le JWT est retourné au client.
+    4.  Le client stocke le JWT (dans le `localStorage` pour la persistance de session).
+    5.  Pour chaque requête API subséquente, le client ajoute l'en-tête `Authorization: Bearer <JWT>`.
+    6.  La passerelle API de Supabase intercepte, valide la signature et l'expiration du JWT, puis exécute la requête avec l'identité de l'utilisateur.
 
 ### 2.3.3. Service de Stockage d'Objets (Supabase Storage)
 
--   **Stockage de Fichiers :** Utilisé pour stocker les images des produits. Les fichiers sont organisés dans un "bucket" dédié nommé `product-images`.
--   **Politiques d'Accès :** Des politiques de sécurité sont définies au niveau du bucket pour contrôler qui peut lire ou écrire des fichiers, s'intégrant avec le service d'authentification.
+-   **Bucket `product-images`** : Un conteneur unique pour toutes les images.
+-   **Politiques de Sécurité du Bucket** : Des politiques sont définies pour que seuls les utilisateurs authentifiés (`authenticated`) puissent téléverser (`INSERT`) des images. La lecture (`SELECT`) est publique pour que les images puissent être affichées facilement dans l'application sans nécessiter de token d'accès pour chaque image.
 
 ### 2.3.4. Fonctions Edge Serverless (Deno)
 
--   **Logique Côté Serveur Sécurisée :** Les Edge Functions sont utilisées pour exécuter du code sensible qui ne doit jamais être exposé côté client.
--   **`crypto-service` :** Notre fonction principale, écrite en TypeScript et exécutée sur l'environnement Deno. Son rôle est crucial :
-    1.  Elle est la seule à avoir accès à la variable d'environnement `ENCRYPTION_KEY`.
-    2.  Elle expose des points d'accès (`/encrypt`, `/decrypt`) qui ne peuvent être appelés que par un utilisateur authentifié.
-    3.  Elle reçoit des données en clair du client, les chiffre avec AES-256-GCM en utilisant la clé secrète, et renvoie le texte chiffré. Le processus inverse est effectué pour le déchiffrement.
-    -   Cela garantit que la clé de chiffrement principale ne quitte jamais l'environnement sécurisé du serveur.
+-   **Environnement Deno** : Les fonctions s'exécutent dans un environnement TypeScript/JavaScript sécurisé, distinct de Node.js.
+-   **`crypto-service` comme Enclave Sécurisée** : Cette fonction est le seul endroit où la `ENCRYPTION_KEY` est accessible. Le code client n'a jamais, à aucun moment, connaissance de cette clé. Il ne fait qu'envoyer des données en clair à un endpoint authentifié et reçoit en retour des données chiffrées. Ce modèle est essentiel pour le chiffrement au repos et la conformité à la Loi 25.
 
 ---
 
 ## 2.4. Structure Détaillée du Code Source
 
-La structure du projet est organisée pour être intuitive et scalable, en séparant clairement les préoccupations.
-
 ### 2.4.1. Analyse du Répertoire `src`
 
--   `components/` : Contient tous les composants React réutilisables. Il est subdivisé par fonctionnalité (ex: `pos/`, `inventory/`, `security/`) pour une meilleure organisation. Le sous-répertoire `ui/` contient les composants de base de `shadcn/ui`.
--   `pages/` : Chaque fichier correspond à une page (une route) de l'application. Ces composants assemblent les composants plus petits de `components/` pour construire une vue complète.
--   `lib/` : Le cœur de la logique métier et de la sécurité de l'application. C'est ici que se trouvent les modules les plus critiques.
--   `integrations/` : Contient la configuration des clients pour les services externes, principalement le client Supabase.
--   `utils/` : Fonctions utilitaires génériques qui peuvent être utilisées n'importe où dans l'application (ex: affichage de notifications).
+-   `components/` : Contient des composants "intelligents" (avec de la logique) et "bêtes" (purement présentationnels), organisés par domaine fonctionnel.
+-   `pages/` : Assemble les composants pour créer des vues complètes. C'est ici que la plupart des appels à `react-query` (`useQuery`, `useMutation`) sont effectués pour récupérer et modifier les données de la page.
+-   `lib/` : Contient la logique métier la plus critique et réutilisable. C'est le "cerveau" de l'application côté client.
+-   `integrations/` : Isole la configuration des services tiers. Si on changeait de BaaS, seul ce répertoire serait massivement impacté.
+-   `utils/` : Fonctions pures et génériques, sans dépendance à l'état de l'application (ex: formater une date, afficher une notification).
 
 ### 2.4.2. Analyse du Répertoire `lib`
 
-Ce répertoire est fondamental pour la sécurité et la logique de l'application.
-
--   `crypto.ts` : Gère l'interface avec l'Edge Function de chiffrement. Il expose des fonctions simples (`encryptBatch`, `decryptBatch`) qui masquent la complexité des appels API.
--   `tokenization.ts` : Contient toute la logique de création et de validation des tokens permanents et temporaires.
--   `audit.ts` : Fournit les fonctions pour créer et récupérer des logs d'audit, centralisant la logique de traçabilité.
--   `card-validation.ts` : Implémente l'algorithme de Luhn pour la génération et la validation des codes de carte.
--   `device-fingerprint.ts` : Gère la génération d'empreintes d'appareil, l'enregistrement et la vérification des appareils autorisés.
--   `honeypot.ts` : Contient la logique de détection d'intrusion (honeypots, canary tokens, détection de scraping).
--   `e2e-encryption.ts` : Implémente l'architecture de chiffrement de bout en bout (RSA + AES) pour les futures fonctionnalités.
+-   `crypto.ts` : Agit comme un SDK pour notre service de chiffrement. Il expose des fonctions (`encryptBatch`, `decryptBatch`) qui encapsulent les appels `fetch` vers l'Edge Function, en y ajoutant automatiquement le token d'authentification.
+-   `tokenization.ts` : Orchestre la logique complexe de la double tokenisation. Il interagit avec la table `card_tokens` pour créer, valider et invalider les tokens.
+-   `audit.ts` : Centralise toutes les écritures dans la table `audit_logs`. Chaque action importante dans l'application (connexion, vente, etc.) doit appeler une fonction de ce module.
+-   `device-fingerprint.ts` : Intègre la librairie `FingerprintJS` et communique avec la table `device_fingerprints` pour appliquer la logique de biométrie d'appareil.
 
 ### 2.4.3. Analyse du Répertoire `supabase`
 
--   `functions/` : Contient le code source des Edge Functions.
-    -   `crypto-service/index.ts` : Le code de notre service de chiffrement, qui sera déployé sur l'infrastructure de Supabase.
+-   `functions/crypto-service/index.ts` : C'est le code qui s'exécute côté serveur. Il importe la librairie `crypto` de Deno, récupère la clé secrète depuis les variables d'environnement, et expose une API simple pour chiffrer/déchiffrer des données. Il inclut également une vérification d'authentification pour s'assurer que seul un utilisateur connecté peut l'utiliser.
 
 ---
 
 ## 2.5. Analyse des Flux de Données Critiques
 
-Cette section décrit, étape par étape, comment les données circulent à travers le système lors d'opérations clés.
-
 ### 2.5.1. Flux 1 : Processus de Connexion et d'Autorisation d'Appareil
 
-1.  **Utilisateur** saisit email/mot de passe et soumet le formulaire.
-2.  **Frontend** appelle `supabase.auth.signInWithPassword()`.
-3.  **Supabase Auth** valide les identifiants. Si corrects, un JWT est retourné.
-4.  **Frontend** appelle `countAuthorizedDevices()` avec l'ID de l'utilisateur.
-5.  **Si `count` est 0 (première connexion) :**
-    -   Le frontend appelle `registerDevice()`.
-    -   `registerDevice()` génère une empreinte d'appareil et l'insère dans la table `device_fingerprints`.
-    -   L'utilisateur est redirigé vers le Dashboard.
-6.  **Si `count` > 0 :**
-    -   Le frontend appelle `isDeviceAuthorized()`.
-    -   Si `true`, l'utilisateur est redirigé vers le Dashboard.
-    -   Si `false`, le frontend appelle `isAccountUnlocked()`.
-    -   Si `isAccountUnlocked` est `true`, une modale (`Device Authorization Dialog`) est affichée, demandant à l'utilisateur s'il veut autoriser ce nouvel appareil.
-    -   Si `isAccountUnlocked` est `false`, la session est détruite (`supabase.auth.signOut()`) et une erreur "Appareil non autorisé" est affichée.
+1.  **Client** : `supabase.auth.signInWithPassword()` est appelé.
+2.  **Supabase** : Valide les identifiants, retourne un JWT.
+3.  **Client** : Appelle `countAuthorizedDevices(userId)`.
+4.  **`countAuthorizedDevices`** : Fait un `SELECT count()` sur `device_fingerprints` où `user_id` correspond.
+5.  **Si `count` > 0** :
+    -   **Client** : Appelle `isDeviceAuthorized(userId)`.
+    -   **`isDeviceAuthorized`** : Appelle `generateDeviceFingerprint()` pour obtenir l'empreinte actuelle, puis fait un `SELECT` sur `device_fingerprints` pour trouver une correspondance.
+    -   Si une correspondance est trouvée, la connexion est réussie.
+    -   Sinon, la connexion est refusée (sauf si le mode déverrouillé est actif).
 
 ### 2.5.2. Flux 2 : Cycle de Vie d'une Transaction au Point de Vente
 
-1.  **Opérateur** ajoute des produits au panier (état local React).
-2.  **Opérateur** clique sur "Finaliser la commande".
-3.  **Frontend** affiche la modale `CheckoutDialog`.
-4.  **Si une carte récompense est utilisée :**
-    -   L'opérateur saisit le code de la carte.
-    -   Le frontend valide le format et l'algorithme de Luhn (`card-validation.ts`).
-    -   Le frontend appelle une fonction qui (côté serveur ou via des appels sécurisés) récupère le token permanent associé, génère un token temporaire (`tokenization.ts`), et le retourne.
-5.  **Opérateur** sélectionne la méthode de paiement.
-6.  **Frontend** envoie une requête `INSERT` à la table `orders` avec tous les détails (articles, total, méthode de paiement, ID client/carte si applicable).
-7.  **Si la commande contient des articles à préparer :**
-    -   Le frontend calcule le temps d'attente et le prochain numéro de file.
-    -   Une requête `INSERT` est envoyée à la table `preparation_queue`.
-8.  **Si une carte a été utilisée :**
-    -   Le frontend envoie une requête `UPDATE` à la table `customer_profiles` pour ajouter les points.
-    -   Le frontend envoie une requête `UPDATE` à la table `card_tokens` pour marquer le token temporaire comme "utilisé".
-9.  **Frontend** vide le panier et affiche une confirmation.
+1.  **Client** : L'état du panier est géré localement avec `useState`.
+2.  **Client** : Au paiement, un objet `order` est construit.
+3.  **Client** : `useMutation` de `react-query` est appelé pour insérer la commande.
+4.  **La fonction de mutation** :
+    -   Appelle `supabase.from('orders').insert(order)`.
+    -   Si des articles sont à préparer, appelle `supabase.from('preparation_queue').insert(...)`.
+    -   Si une carte a été utilisée, appelle `supabase.from('customer_profiles').update(...)` pour les points et `supabase.from('card_tokens').update(...)` pour invalider le token.
+    -   Appelle `createAuditLog()` pour tracer l'événement.
+5.  **`onSuccess` de la mutation** : Invalide les requêtes pertinentes (ex: `queryClient.invalidateQueries(['orders'])`) pour rafraîchir les données.
 
 ### 2.5.3. Flux 3 : Création d'une Fiche Client (avec Chiffrement)
 
-1.  **Opérateur** ouvre la modale `CreateCardDialog` et saisit le prénom et le numéro de fiche.
-2.  **Frontend** appelle `encryptBatch({ first_name: '...', customer_number: '...' })` depuis `crypto.ts`.
-3.  `crypto.ts` envoie une requête `POST` à l'**Edge Function `crypto-service`** avec les données en clair.
-4.  **Edge Function** chiffre les données avec AES-256-GCM et retourne les valeurs chiffrées.
-5.  **Frontend** envoie une requête `INSERT` à la table `customer_profiles` avec les données chiffrées.
-6.  **Frontend** génère un code de carte valide avec `generateCardCodeWithLuhn()`.
-7.  **Frontend** envoie une requête `INSERT` à la table `reward_cards` avec le code et l'ID du nouveau profil.
-8.  **Frontend** appelle `createPermanentCardToken()` qui génère un token unique et l'insère dans la table `card_tokens`.
-9.  **Frontend** crée un log d'audit pour l'ensemble de l'opération.
+1.  **Client** : `CreateCardDialog` collecte les données en clair.
+2.  **Client** : Appelle `encryptBatch({ ... })`.
+3.  **`encryptBatch`** : Fait un `fetch` vers l'URL de l'Edge Function `crypto-service`, en passant le JWT dans l'en-tête `Authorization` et les données en clair dans le corps.
+4.  **Edge Function** : Reçoit la requête, valide le JWT, chiffre les données avec la `ENCRYPTION_KEY`, et retourne les données chiffrées.
+5.  **Client** : Reçoit les données chiffrées et procède à une série d'appels `supabase.from(...).insert(...)` dans l'ordre suivant pour respecter les contraintes de clés étrangères :
+    1.  `customer_profiles` (avec les données chiffrées)
+    2.  `reward_cards` (en utilisant l'ID du profil créé à l'étape 1)
+    3.  `card_tokens` (en utilisant l'ID de la carte créée à l'étape 2)
 
 ### 2.5.4. Flux 4 : Validation d'une Carte et Génération de Token
 
-1.  **Opérateur** saisit un code de carte dans le `CheckoutDialog`.
-2.  **Frontend** valide le format et l'algorithme de Luhn (`card-validation.ts`).
-3.  **Frontend** envoie une requête `SELECT` à la table `reward_cards` pour trouver la carte correspondante.
-4.  **Frontend** envoie une requête `SELECT` à la table `card_tokens` pour trouver le token `permanent` associé à l'ID de la carte.
-5.  **Frontend** appelle `generateTemporaryToken()` avec le token permanent.
-6.  `generateTemporaryToken()` (`tokenization.ts`) :
-    -   Vérifie que le token permanent est valide et actif.
-    -   Génère un nouveau token unique.
-    -   Calcule une date d'expiration (maintenant + 5 minutes).
-    -   Envoie une requête `INSERT` à la table `card_tokens` avec le nouveau token, le type `temporary` et la date d'expiration.
-7.  Le token temporaire est retourné au `CheckoutDialog` et stocké dans l'état pour être utilisé lors du paiement final.
+1.  **Client** : Saisie du code de carte (ex: `AB 12 3`).
+2.  **Client** : `validateLuhnAlphanumeric(cleanCardCode('AB 12 3'))` est appelé pour une validation instantanée.
+3.  **Client** : Si valide, `SELECT` sur `reward_cards` avec `WHERE card_code = 'AB123'`.
+4.  **Client** : Avec l'ID de la carte, `SELECT` sur `card_tokens` avec `WHERE reward_card_id = <id> AND token_type = 'permanent'`.
+5.  **Client** : Appelle `generateTemporaryToken(permanentToken)`.
+6.  **`generateTemporaryToken`** :
+    -   Génère un token aléatoire.
+    -   Calcule `expires_at = new Date() + 5 minutes`.
+    -   `INSERT` dans `card_tokens` avec le nouveau token, le type `temporary` et la date d'expiration.
+7.  Le token temporaire est stocké dans l'état React du `CheckoutDialog`.
