@@ -11,7 +11,7 @@ interface DeviceInfo {
 
 /**
  * Génère une empreinte unique de l'appareil
- * CORRECTION : Configuration pour ignorer les composants instables (zoom, résolution)
+ * Configuré pour ignorer les composants instables (zoom, résolution)
  */
 export const generateDeviceFingerprint = async (): Promise<DeviceInfo> => {
   // Initialiser FingerprintJS avec des options pour ignorer les éléments variables
