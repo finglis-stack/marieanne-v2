@@ -9,6 +9,16 @@ import { Heart, Gift, Coffee, MessageCircle, Clock, Search, ChefHat } from 'luci
 import { showSuccess, showError } from '@/utils/toast';
 import { createAuditLog } from '@/lib/audit';
 import { OrderNumberDialog } from '@/components/pos/order-number-dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface SuspendedItem {
   id: string;
@@ -41,6 +51,9 @@ export const SuspendedWall = ({ lastUpdate }: SuspendedWallProps) => {
   const [items, setItems] = useState<SuspendedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // État pour la confirmation
+  const [itemToClaim, setItemToClaim] = useState<SuspendedItem | null>(null);
   
   // États pour le dialogue de numéro de commande
   const [orderNumberDialogOpen, setOrderNumberDialogOpen] = useState(false);
@@ -85,7 +98,7 @@ export const SuspendedWall = ({ lastUpdate }: SuspendedWallProps) => {
     setLoading(false);
   };
 
-  // --- LOGIQUE DE FILE D'ATTENTE (Identique au POS) ---
+  // --- LOGIQUE DE FILE D'ATTENTE ---
 
   const getNextQueueNumber = async (preparationType: 'sandwich' | 'pizza'): Promise<number> => {
     const { data: allQueue } = await supabase
@@ -128,10 +141,16 @@ export const SuspendedWall = ({ lastUpdate }: SuspendedWallProps) => {
     return { queueNumber, estimatedTime: totalTime };
   };
 
-  // --- FIN LOGIQUE FILE D'ATTENTE ---
+  // --- ACTIONS ---
 
-  const handleClaim = async (item: SuspendedItem) => {
-    if (!confirm(`Donner "${item.product.name}" à un élève ?`)) return;
+  const handleInitiateClaim = (item: SuspendedItem) => {
+    setItemToClaim(item);
+  };
+
+  const handleConfirmClaim = async () => {
+    if (!itemToClaim) return;
+    const item = itemToClaim;
+    setItemToClaim(null); // Fermer le dialogue de confirmation
 
     try {
       // 1. Si préparation requise, ajouter à la file
@@ -142,7 +161,7 @@ export const SuspendedWall = ({ lastUpdate }: SuspendedWallProps) => {
         const { error: queueError } = await supabase
           .from('preparation_queue')
           .insert({
-            order_id: item.order_id, // On lie à la commande d'origine du donateur
+            order_id: item.order_id,
             queue_number: queueNumber,
             preparation_type: prepType,
             estimated_time: estimatedTime,
@@ -151,6 +170,7 @@ export const SuspendedWall = ({ lastUpdate }: SuspendedWallProps) => {
 
         if (queueError) throw queueError;
 
+        // Afficher le numéro de commande
         setPreparationInfo({ queueNumber, estimatedTime, preparationType: prepType });
         setOrderNumberDialogOpen(true);
       }
@@ -167,7 +187,7 @@ export const SuspendedWall = ({ lastUpdate }: SuspendedWallProps) => {
       if (error) throw error;
 
       if (!item.product.requires_preparation) {
-        showSuccess("Item donné avec succès ! ❤️");
+        showSuccess(`"${item.product.name}" donné avec succès ! ❤️`);
       }
 
       await createAuditLog({
@@ -265,7 +285,7 @@ export const SuspendedWall = ({ lastUpdate }: SuspendedWallProps) => {
                   </div>
 
                   <Button 
-                    onClick={() => handleClaim(item)}
+                    onClick={() => handleInitiateClaim(item)}
                     className="w-full bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white shadow-lg shadow-pink-900/20"
                   >
                     {item.product.requires_preparation ? (
@@ -287,6 +307,41 @@ export const SuspendedWall = ({ lastUpdate }: SuspendedWallProps) => {
         )}
       </div>
 
+      {/* Dialogue de confirmation stylisé */}
+      <AlertDialog open={!!itemToClaim} onOpenChange={(open) => !open && setItemToClaim(null)}>
+        <AlertDialogContent className="backdrop-blur-xl bg-slate-900/95 border-pink-500/30 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl text-pink-400 flex items-center gap-2">
+              <Gift className="w-5 h-5" />
+              Confirmer le don ?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-300">
+              Vous êtes sur le point de donner <strong>{itemToClaim?.product.name}</strong> à un élève.
+              {itemToClaim?.product.requires_preparation && (
+                <div className="mt-3 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg flex items-start gap-2">
+                  <ChefHat className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" />
+                  <span className="text-orange-300 text-sm">
+                    Cet article nécessite une préparation. Un numéro de commande sera généré pour la file d'attente.
+                  </span>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-900/50 border-gray-500/50 text-gray-300 hover:bg-slate-800 hover:text-white">
+              Annuler
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmClaim} 
+              className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white"
+            >
+              Confirmer le don
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialogue de numéro de commande (pour les items préparés) */}
       {preparationInfo && (
         <OrderNumberDialog
           open={orderNumberDialogOpen}
