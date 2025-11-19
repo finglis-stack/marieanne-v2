@@ -17,6 +17,7 @@ import Reports from "./pages/Reports";
 import AuditLogs from "./pages/AuditLogs";
 import DeviceManagement from "./pages/DeviceManagement";
 import SecurityDashboard from "./pages/SecurityDashboard";
+import SuspendedCoffee from "./pages/SuspendedCoffee";
 import NotFound from "./pages/NotFound";
 import { ParticleBackground } from "./components/particle-background";
 
@@ -74,6 +75,7 @@ const App = () => {
             <Route path="/audit-logs" element={<AuditLogs />} />
             <Route path="/device-management" element={<DeviceManagement />} />
             <Route path="/security-dashboard" element={<SecurityDashboard />} />
+            <Route path="/suspended-coffee" element={<SuspendedCoffee />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
