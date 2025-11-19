@@ -344,7 +344,11 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
                 </SelectTrigger>
                 <SelectContent className="bg-slate-900 border-pink-500/50 max-h-80">
                   {products.map(p => (
-                    <SelectItem key={p.id} value={p.id} className="text-white py-3 cursor-pointer">
+                    <SelectItem 
+                      key={p.id} 
+                      value={p.id} 
+                      className="text-white py-3 cursor-pointer focus:bg-pink-500/20 focus:text-white"
+                    >
                       <div className="flex items-center gap-3">
                         {p.image_url ? (
                           <img src={p.image_url} alt={p.name} className="w-10 h-10 object-cover rounded bg-slate-800" />
@@ -385,7 +389,7 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
             </div>
 
             <div className="pt-4 flex gap-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1 bg-slate-900/50 border-gray-500/50 text-gray-300">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1 bg-slate-900/50 border-gray-500/50 text-gray-300 hover:bg-slate-800 hover:text-white">
                 Annuler
               </Button>
               <Button type="submit" disabled={!selectedProductId} className="flex-1 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white">
@@ -434,13 +438,13 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
               <Button
                 onClick={() => setStep('payment')}
                 variant="outline"
-                className="bg-slate-900/50 border-gray-500/50 text-gray-300"
+                className="bg-slate-900/50 border-gray-500/50 text-gray-300 hover:bg-slate-800 hover:text-white"
               >
                 Pas de carte
               </Button>
             </div>
             
-            <Button variant="ghost" onClick={() => setStep('product')} className="w-full text-gray-400 hover:text-white mt-2">
+            <Button variant="ghost" onClick={() => setStep('product')} className="w-full text-gray-400 hover:text-white hover:bg-slate-800 mt-2">
               <ArrowLeft className="w-4 h-4 mr-2" /> Retour
             </Button>
           </div>
@@ -511,7 +515,7 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
               </Button>
             </div>
 
-            <Button variant="ghost" onClick={() => setStep('reward')} disabled={loading} className="w-full text-gray-400 hover:text-white">
+            <Button variant="ghost" onClick={() => setStep('reward')} disabled={loading} className="w-full text-gray-400 hover:text-white hover:bg-slate-800">
               <ArrowLeft className="w-4 h-4 mr-2" /> Retour
             </Button>
           </div>
