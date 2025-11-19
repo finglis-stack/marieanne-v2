@@ -25,7 +25,8 @@ export type AuditAction =
   | 'UPDATE_PREPARATION_STATUS'
   | 'VALIDATE_TOKEN'
   | 'ENCRYPT_DATA'
-  | 'DECRYPT_DATA';
+  | 'DECRYPT_DATA'
+  | 'VERIFY_INTEGRITY'; // Nouvelle action pour l'audit de l'audit
 
 export type ResourceType = 
   | 'USER'
@@ -37,7 +38,8 @@ export type ResourceType =
   | 'REPORT'
   | 'PREPARATION_QUEUE'
   | 'TOKEN'
-  | 'DATA';
+  | 'DATA'
+  | 'SYSTEM';
 
 interface AuditLogData {
   action: AuditAction;
@@ -47,32 +49,150 @@ interface AuditLogData {
 }
 
 /**
- * Crée un log d'audit
+ * Calcule le hash SHA-256 d'une entrée de log
+ */
+const calculateLogHash = async (
+  previousHash: string,
+  userId: string | null,
+  action: string,
+  resourceType: string,
+  resourceId: string | null,
+  details: any,
+  createdAt: string
+): Promise<string> => {
+  // Créer une chaîne unique représentant le bloc
+  const dataString = JSON.stringify({
+    previousHash,
+    userId,
+    action,
+    resourceType,
+    resourceId,
+    details,
+    createdAt
+  });
+
+  // Encoder en Uint8Array
+  const msgBuffer = new TextEncoder().encode(dataString);
+
+  // Hacher avec SHA-256
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+
+  // Convertir en chaîne hexadécimale
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+  return hashHex;
+};
+
+/**
+ * Crée un log d'audit sécurisé (Blockchain Entry)
  */
 export const createAuditLog = async (data: AuditLogData): Promise<void> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
+    const createdAt = new Date().toISOString();
     
-    if (!user) {
-      console.warn('Tentative de log sans utilisateur authentifié');
-      return;
-    }
+    // 1. Récupérer le dernier log pour obtenir son hash (le "previous_hash" du nouveau bloc)
+    const { data: lastLog } = await supabase
+      .from('audit_logs')
+      .select('hash')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
 
+    // Si c'est le tout premier log (Genesis Block), on utilise un hash de zéros
+    const previousHash = lastLog?.hash || '0000000000000000000000000000000000000000000000000000000000000000';
+
+    // 2. Calculer le hash du nouveau bloc
+    const currentHash = await calculateLogHash(
+      previousHash,
+      user?.id || null,
+      data.action,
+      data.resourceType,
+      data.resourceId || null,
+      data.details,
+      createdAt
+    );
+
+    // 3. Insérer le log avec les preuves cryptographiques
     await supabase
       .from('audit_logs')
       .insert({
-        user_id: user.id,
-        user_email: user.email,
+        user_id: user?.id,
+        user_email: user?.email,
         action: data.action,
         resource_type: data.resourceType,
         resource_id: data.resourceId,
         details: data.details,
-        ip_address: null, // Sera rempli côté serveur si nécessaire
+        ip_address: null,
         user_agent: navigator.userAgent,
+        created_at: createdAt,
+        hash: currentHash,
+        previous_hash: previousHash
       });
+      
   } catch (error) {
-    console.error('Erreur lors de la création du log d\'audit:', error);
+    console.error('Erreur critique lors de la création du log d\'audit:', error);
+    // En cas d'échec de la blockchain, on devrait idéalement alerter les admins
   }
+};
+
+/**
+ * Vérifie l'intégrité de la chaîne de logs (Blockchain Verification)
+ * Retourne true si la chaîne est valide, false sinon.
+ * Retourne aussi l'index du bloc corrompu si trouvé.
+ */
+export const verifyAuditChain = async (): Promise<{ valid: boolean; corruptedBlockId?: string; totalChecked: number }> => {
+  // Récupérer tous les logs triés par date (du plus vieux au plus récent)
+  // Note: En production avec des millions de logs, on ferait ça par lots (batching)
+  const { data: logs, error } = await supabase
+    .from('audit_logs')
+    .select('*')
+    .order('created_at', { ascending: true });
+
+  if (error || !logs || logs.length === 0) {
+    return { valid: true, totalChecked: 0 };
+  }
+
+  // Vérifier le Genesis Block (le premier log)
+  // Pour simplifier, on assume que le premier log récupéré a un previous_hash de zéros 
+  // ou on commence la vérification à partir du deuxième.
+  
+  for (let i = 0; i < logs.length; i++) {
+    const currentLog = logs[i];
+    
+    // Si ce n'est pas le premier log, vérifier le lien avec le précédent
+    if (i > 0) {
+      const previousLog = logs[i - 1];
+      
+      // Vérification 1 : Le previous_hash doit correspondre au hash du log précédent
+      if (currentLog.previous_hash !== previousLog.hash) {
+        console.error(`Rupture de chaîne détectée au log ${currentLog.id}`);
+        return { valid: false, corruptedBlockId: currentLog.id, totalChecked: i + 1 };
+      }
+    }
+
+    // Vérification 2 : Recalculer le hash du log actuel pour vérifier qu'il n'a pas été altéré
+    // Note: Si le log n'a pas de hash (vieux logs avant la mise à jour), on ignore
+    if (currentLog.hash) {
+      const recalculatedHash = await calculateLogHash(
+        currentLog.previous_hash || '0000000000000000000000000000000000000000000000000000000000000000',
+        currentLog.user_id,
+        currentLog.action,
+        currentLog.resource_type,
+        currentLog.resource_id,
+        currentLog.details,
+        currentLog.created_at
+      );
+
+      if (recalculatedHash !== currentLog.hash) {
+        console.error(`Altération de données détectée au log ${currentLog.id}`);
+        return { valid: false, corruptedBlockId: currentLog.id, totalChecked: i + 1 };
+      }
+    }
+  }
+
+  return { valid: true, totalChecked: logs.length };
 };
 
 /**

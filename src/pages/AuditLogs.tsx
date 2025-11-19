@@ -8,9 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Search, Activity, User, Clock, Filter, Download, ChevronLeft, ChevronRight } from 'lucide-react';
-import { showError } from '@/utils/toast';
+import { ArrowLeft, Search, Activity, User, Clock, Filter, Download, ChevronLeft, ChevronRight, ShieldCheck, Link, AlertOctagon, Loader2 } from 'lucide-react';
+import { showError, showSuccess } from '@/utils/toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { verifyAuditChain, createAuditLog } from '@/lib/audit';
 
 interface AuditLog {
   id: string;
@@ -23,6 +24,8 @@ interface AuditLog {
   ip_address: string | null;
   user_agent: string | null;
   created_at: string;
+  hash?: string;
+  previous_hash?: string;
 }
 
 const ITEMS_PER_PAGE = 50;
@@ -36,6 +39,8 @@ const AuditLogs = () => {
   const [resourceFilter, setResourceFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [verifying, setVerifying] = useState(false);
+  const [integrityStatus, setIntegrityStatus] = useState<'unknown' | 'valid' | 'corrupted'>('unknown');
 
   useEffect(() => {
     const getUser = async () => {
@@ -68,11 +73,55 @@ const AuditLogs = () => {
     setLoading(false);
   };
 
+  const handleVerifyIntegrity = async () => {
+    setVerifying(true);
+    setIntegrityStatus('unknown');
+    
+    try {
+      const result = await verifyAuditChain();
+      
+      if (result.valid) {
+        setIntegrityStatus('valid');
+        showSuccess(`Intégrité vérifiée : ${result.totalChecked} blocs valides. La chaîne est intacte.`);
+        
+        // Logger la vérification réussie
+        await createAuditLog({
+          action: 'VERIFY_INTEGRITY',
+          resourceType: 'SYSTEM',
+          details: {
+            status: 'valid',
+            blocks_checked: result.totalChecked
+          }
+        });
+      } else {
+        setIntegrityStatus('corrupted');
+        showError(`CORRUPTION DÉTECTÉE au bloc ${result.corruptedBlockId}. La chaîne est brisée !`);
+        
+        // Logger l'échec (si possible)
+        await createAuditLog({
+          action: 'VERIFY_INTEGRITY',
+          resourceType: 'SYSTEM',
+          details: {
+            status: 'corrupted',
+            corrupted_block: result.corruptedBlockId,
+            severity: 'CRITICAL'
+          }
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      showError('Erreur lors de la vérification');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   const filteredLogs = logs.filter(log => {
     const matchesSearch = 
       log.user_email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.resource_type.toLowerCase().includes(searchQuery.toLowerCase());
+      log.resource_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      log.hash?.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesAction = actionFilter === 'all' || log.action === actionFilter;
     const matchesResource = resourceFilter === 'all' || log.resource_type === resourceFilter;
@@ -93,6 +142,7 @@ const AuditLogs = () => {
     if (action.startsWith('UPDATE')) return 'bg-blue-500/20 text-blue-400 border-blue-500/50';
     if (action.startsWith('DELETE')) return 'bg-red-500/20 text-red-400 border-red-500/50';
     if (action.startsWith('VIEW')) return 'bg-gray-500/20 text-gray-400 border-gray-500/50';
+    if (action === 'VERIFY_INTEGRITY') return 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50';
     return 'bg-purple-500/20 text-purple-400 border-purple-500/50';
   };
 
@@ -101,13 +151,15 @@ const AuditLogs = () => {
   };
 
   const exportToCSV = () => {
-    const headers = ['Date', 'Utilisateur', 'Action', 'Ressource', 'ID Ressource', 'Détails'];
+    const headers = ['Date', 'Utilisateur', 'Action', 'Ressource', 'ID Ressource', 'Hash', 'Hash Précédent', 'Détails'];
     const rows = filteredLogs.map(log => [
       new Date(log.created_at).toLocaleString('fr-CA'),
       log.user_email,
       log.action,
       log.resource_type,
       log.resource_id || '',
+      log.hash || '',
+      log.previous_hash || '',
       JSON.stringify(log.details || {}),
     ]);
 
@@ -120,7 +172,7 @@ const AuditLogs = () => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `audit-logs-${new Date().toISOString()}.csv`;
+    a.download = `audit-blockchain-${new Date().toISOString()}.csv`;
     a.click();
   };
 
@@ -167,22 +219,61 @@ const AuditLogs = () => {
                   Retour
                 </Button>
                 <div>
-                  <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent">
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent flex items-center gap-2">
                     Grand Livre d'Audit
+                    <Badge variant="outline" className="ml-2 bg-cyan-500/20 text-cyan-400 border-cyan-500/50 text-sm">
+                      <Link className="w-3 h-3 mr-1" />
+                      Blockchain Privée
+                    </Badge>
                   </h1>
                   <p className="text-gray-400 flex items-center gap-2">
                     <Activity className="w-4 h-4" />
-                    Historique complet des actions
+                    Historique immuable et vérifiable cryptographiquement
                   </p>
                 </div>
               </div>
-              <Button
-                onClick={exportToCSV}
-                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Exporter CSV
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleVerifyIntegrity}
+                  disabled={verifying}
+                  className={`font-semibold transition-all duration-300 ${
+                    integrityStatus === 'valid' 
+                      ? 'bg-green-600 hover:bg-green-700 text-white' 
+                      : integrityStatus === 'corrupted'
+                      ? 'bg-red-600 hover:bg-red-700 text-white'
+                      : 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                  }`}
+                >
+                  {verifying ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Vérification...
+                    </>
+                  ) : integrityStatus === 'valid' ? (
+                    <>
+                      <ShieldCheck className="w-4 h-4 mr-2" />
+                      Intégrité Validée
+                    </>
+                  ) : integrityStatus === 'corrupted' ? (
+                    <>
+                      <AlertOctagon className="w-4 h-4 mr-2" />
+                      CORRUPTION DÉTECTÉE
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4 mr-2" />
+                      Vérifier l'intégrité
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={exportToCSV}
+                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Exporter CSV
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -190,7 +281,7 @@ const AuditLogs = () => {
                 <div className="flex items-center gap-3">
                   <Activity className="w-5 h-5 text-blue-400" />
                   <div>
-                    <p className="text-gray-400 text-xs">Total logs</p>
+                    <p className="text-gray-400 text-xs">Total blocs</p>
                     <p className="text-white text-2xl font-bold">{logs.length}</p>
                   </div>
                 </div>
@@ -222,7 +313,7 @@ const AuditLogs = () => {
                 <div className="flex items-center gap-3">
                   <Clock className="w-5 h-5 text-orange-400" />
                   <div>
-                    <p className="text-gray-400 text-xs">Dernière activité</p>
+                    <p className="text-gray-400 text-xs">Dernier bloc</p>
                     <p className="text-white text-sm font-bold">
                       {logs.length > 0 ? new Date(logs[0].created_at).toLocaleTimeString('fr-CA') : 'N/A'}
                     </p>
@@ -237,7 +328,7 @@ const AuditLogs = () => {
                 <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Rechercher..."
+                  placeholder="Rechercher (hash, action, email)..."
                   className="pl-10 bg-slate-900/50 border-blue-500/50 text-white placeholder:text-gray-500 focus:border-blue-400"
                 />
               </div>
@@ -273,53 +364,62 @@ const AuditLogs = () => {
           </div>
 
           <div className="space-y-2">
-            {paginatedLogs.map((log) => (
-              <Card key={log.id} className="backdrop-blur-xl bg-slate-900/60 border-blue-500/20 p-4">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <Badge variant="outline" className={getActionColor(log.action)}>
-                        {formatAction(log.action)}
-                      </Badge>
-                      <Badge variant="outline" className="bg-purple-500/20 text-purple-400 border-purple-500/50">
-                        {log.resource_type}
-                      </Badge>
-                      {log.resource_id && (
-                        <Badge variant="outline" className="bg-gray-500/20 text-gray-400 border-gray-500/50 font-mono text-xs">
-                          ID: {log.resource_id.slice(0, 8)}...
+            {paginatedLogs.map((log, index) => (
+              <div key={log.id} className="relative">
+                {/* Ligne de connexion visuelle entre les blocs */}
+                {index < paginatedLogs.length - 1 && (
+                  <div className="absolute left-8 top-16 bottom-0 w-0.5 bg-gradient-to-b from-cyan-500/50 to-transparent -z-10 h-full" />
+                )}
+                
+                <Card className="backdrop-blur-xl bg-slate-900/60 border-blue-500/20 p-4 hover:border-cyan-500/50 transition-all duration-300 group">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div className="p-2 bg-slate-800 rounded-full border border-blue-500/30">
+                          <Link className="w-4 h-4 text-cyan-400" />
+                        </div>
+                        <Badge variant="outline" className={getActionColor(log.action)}>
+                          {formatAction(log.action)}
                         </Badge>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-6 text-sm">
-                      <div className="flex items-center gap-2 text-gray-400">
-                        <User className="w-4 h-4" />
-                        {log.user_email}
+                        <Badge variant="outline" className="bg-purple-500/20 text-purple-400 border-purple-500/50">
+                          {log.resource_type}
+                        </Badge>
+                        <span className="text-xs font-mono text-gray-500">
+                          {new Date(log.created_at).toLocaleString('fr-CA')}
+                        </span>
                       </div>
-                      <div className="flex items-center gap-2 text-gray-400">
-                        <Clock className="w-4 h-4" />
-                        {new Date(log.created_at).toLocaleString('fr-CA', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit'
-                        })}
+
+                      <div className="pl-11 space-y-2">
+                        <div className="flex items-center gap-2 text-sm text-gray-400">
+                          <User className="w-3 h-3" />
+                          {log.user_email}
+                        </div>
+
+                        {/* Affichage des Hashs */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[10px] font-mono bg-slate-950/50 p-2 rounded border border-blue-500/10">
+                          <div>
+                            <span className="text-gray-500 block">Hash actuel :</span>
+                            <span className="text-cyan-400 break-all">{log.hash || 'Non signé'}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 block">Hash précédent :</span>
+                            <span className="text-gray-600 break-all">{log.previous_hash || 'Genesis'}</span>
+                          </div>
+                        </div>
+
+                        {log.details && Object.keys(log.details).length > 0 && (
+                          <details className="text-xs text-gray-500">
+                            <summary className="cursor-pointer hover:text-gray-400">Détails des données</summary>
+                            <pre className="mt-2 p-2 bg-slate-900/50 rounded overflow-x-auto border border-gray-800">
+                              {JSON.stringify(log.details, null, 2)}
+                            </pre>
+                          </details>
+                        )}
                       </div>
                     </div>
-
-                    {log.details && Object.keys(log.details).length > 0 && (
-                      <details className="text-xs text-gray-500 mt-2">
-                        <summary className="cursor-pointer hover:text-gray-400">Détails</summary>
-                        <pre className="mt-2 p-2 bg-slate-900/50 rounded overflow-x-auto">
-                          {JSON.stringify(log.details, null, 2)}
-                        </pre>
-                      </details>
-                    )}
                   </div>
-                </div>
-              </Card>
+                </Card>
+              </div>
             ))}
           </div>
 
@@ -357,7 +457,7 @@ const AuditLogs = () => {
               <p className="text-gray-400 text-lg">
                 {searchQuery || actionFilter !== 'all' || resourceFilter !== 'all' 
                   ? 'Aucun log trouvé avec ces filtres' 
-                  : 'Aucun log pour le moment'}
+                  : 'La blockchain est vide'}
               </p>
             </div>
           )}
