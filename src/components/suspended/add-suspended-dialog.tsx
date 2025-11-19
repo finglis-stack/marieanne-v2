@@ -25,9 +25,10 @@ interface Product {
 interface AddSuspendedDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
-export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogProps) => {
+export const AddSuspendedDialog = ({ open, onOpenChange, onSuccess }: AddSuspendedDialogProps) => {
   // Étapes : product -> reward -> payment
   const [step, setStep] = useState<'product' | 'reward' | 'payment'>('product');
   const [products, setProducts] = useState<Product[]>([]);
@@ -36,7 +37,7 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // États pour la carte récompense (copié du CheckoutDialog pour la sécurité)
+  // États pour la carte récompense
   const [cardCode, setCardCode] = useState('');
   const [validatingCard, setValidatingCard] = useState(false);
   const [cardValidated, setCardValidated] = useState(false);
@@ -122,7 +123,7 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
     return basePrice + tax;
   };
 
-  // --- LOGIQUE CARTE RÉCOMPENSE (Sécurisée) ---
+  // --- LOGIQUE CARTE RÉCOMPENSE ---
 
   const formatCardCodeDisplay = (value: string): string => {
     const cleaned = value.replace(/\s/g, '').toUpperCase();
@@ -150,7 +151,6 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
     }
 
     try {
-      // 1. Récupérer la carte
       const { data: cardData, error: cardError } = await supabase
         .from('reward_cards')
         .select('*, customer_profiles(*)')
@@ -164,7 +164,6 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
         return;
       }
 
-      // 2. Déchiffrer le nom (Sécurité)
       let displayName = 'Client';
       if (cardData.customer_profiles?.first_name) {
         try {
@@ -178,7 +177,6 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
       }
       setCustomerName(displayName);
 
-      // 3. Récupérer le token permanent
       const { data: permanentTokenData, error: tokenError } = await supabase
         .from('card_tokens')
         .select('token')
@@ -193,7 +191,6 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
         return;
       }
 
-      // 4. Générer un token temporaire pour CETTE transaction
       const temporaryToken = await generateTemporaryToken(permanentTokenData.token);
       
       const expiresAt = new Date();
@@ -206,7 +203,6 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
       setValidatedRewardCard(cardData);
       showSuccess('Carte validée !');
       
-      // Passer au paiement après un court délai
       setTimeout(() => setStep('payment'), 800);
 
     } catch (error: any) {
@@ -239,7 +235,6 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
     const pointsEarned = Math.floor(totalAmount * 1000);
 
     try {
-      // 1. Créer la commande
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -261,7 +256,6 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
 
       if (orderError) throw orderError;
 
-      // 2. Mettre à jour les points si carte utilisée
       if (validatedRewardCard) {
         const currentPoints = validatedRewardCard.customer_profiles.points_balance || 0;
         await supabase
@@ -269,13 +263,11 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
           .update({ points_balance: currentPoints + pointsEarned })
           .eq('id', validatedRewardCard.customer_profiles.id);
           
-        // Invalider le token temporaire
         if (generatedToken) {
           await markTokenAsUsed(generatedToken);
         }
       }
 
-      // 3. Créer l'item suspendu
       const { error: suspendedError } = await supabase
         .from('suspended_items')
         .insert({
@@ -301,6 +293,8 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
       });
 
       showSuccess(`Don enregistré ! Merci ${donorName || customerName || 'Anonyme'} ❤️`);
+      
+      if (onSuccess) onSuccess();
       onOpenChange(false);
 
     } catch (error) {
@@ -333,7 +327,6 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
           </DialogTitle>
         </DialogHeader>
 
-        {/* ÉTAPE 1 : SÉLECTION PRODUIT */}
         {step === 'product' && (
           <form onSubmit={(e) => { e.preventDefault(); if(selectedProductId) setStep('reward'); }} className="space-y-4">
             <div className="space-y-2">
@@ -399,7 +392,6 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
           </form>
         )}
 
-        {/* ÉTAPE 2 : CARTE RÉCOMPENSE */}
         {step === 'reward' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
             <div className="flex items-center gap-3 mb-2">
@@ -450,10 +442,8 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
           </div>
         )}
 
-        {/* ÉTAPE 3 : PAIEMENT */}
         {step === 'payment' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-            {/* Résumé Carte */}
             {cardValidated && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between p-3 bg-purple-500/20 border border-purple-500/50 rounded-lg">
@@ -478,7 +468,6 @@ export const AddSuspendedDialog = ({ open, onOpenChange }: AddSuspendedDialogPro
               </div>
             )}
 
-            {/* Résumé Produit */}
             <div className="bg-slate-900/50 p-4 rounded-lg border border-pink-500/20 space-y-2">
               <div className="flex justify-between text-sm text-gray-400">
                 <span>Produit</span>

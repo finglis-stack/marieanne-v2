@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Heart, Gift, Coffee, MessageCircle, Clock } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Heart, Gift, Coffee, MessageCircle, Clock, Search } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { createAuditLog } from '@/lib/audit';
 
@@ -21,9 +22,14 @@ interface SuspendedItem {
   };
 }
 
-export const SuspendedWall = () => {
+interface SuspendedWallProps {
+  lastUpdate?: number;
+}
+
+export const SuspendedWall = ({ lastUpdate }: SuspendedWallProps) => {
   const [items, setItems] = useState<SuspendedItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     loadItems();
@@ -39,6 +45,13 @@ export const SuspendedWall = () => {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  // Recharger si le parent le demande (via lastUpdate)
+  useEffect(() => {
+    if (lastUpdate) {
+      loadItems();
+    }
+  }, [lastUpdate]);
 
   const loadItems = async () => {
     const { data, error } = await supabase
@@ -82,24 +95,43 @@ export const SuspendedWall = () => {
     }
   };
 
+  const filteredItems = items.filter(item => 
+    item.product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (item.donor_name && item.donor_name.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
   if (loading) return <div className="text-white text-center p-8">Chargement du mur de la bonté...</div>;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-6">
-        <Heart className="w-8 h-8 text-pink-500 animate-pulse" />
-        <h2 className="text-2xl font-bold text-white">Mur de la Bonté ({items.length} disponibles)</h2>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <Heart className="w-8 h-8 text-pink-500 animate-pulse" />
+          <h2 className="text-2xl font-bold text-white">Mur de la Bonté ({items.length} disponibles)</h2>
+        </div>
+        
+        <div className="relative w-full md:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Rechercher un produit ou donateur..."
+            className="pl-9 bg-slate-900/50 border-pink-500/30 text-white placeholder:text-gray-500 focus:border-pink-500/60"
+          />
+        </div>
       </div>
 
-      {items.length === 0 ? (
+      {filteredItems.length === 0 ? (
         <div className="text-center py-12 bg-slate-900/40 rounded-xl border border-dashed border-pink-500/30">
           <Coffee className="w-16 h-16 text-pink-500/50 mx-auto mb-4" />
-          <p className="text-gray-400 text-lg">Le mur est vide pour le moment.</p>
-          <p className="text-pink-400 mt-2">Soyez le premier à offrir un café !</p>
+          <p className="text-gray-400 text-lg">
+            {searchQuery ? 'Aucun résultat trouvé pour votre recherche.' : 'Le mur est vide pour le moment.'}
+          </p>
+          {!searchQuery && <p className="text-pink-400 mt-2">Soyez le premier à offrir un café !</p>}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {items.map((item) => (
+          {filteredItems.map((item) => (
             <Card key={item.id} className="relative overflow-hidden backdrop-blur-xl bg-slate-900/60 border-pink-500/30 hover:border-pink-400 transition-all group">
               <div className="absolute inset-0 bg-gradient-to-br from-pink-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               

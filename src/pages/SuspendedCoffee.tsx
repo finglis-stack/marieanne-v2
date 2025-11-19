@@ -11,6 +11,12 @@ import { AddSuspendedDialog } from '@/components/suspended/add-suspended-dialog'
 const SuspendedCoffee = () => {
   const navigate = useNavigate();
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(0);
+
+  const handleSuccess = () => {
+    // Force le rafraîchissement du mur
+    setLastUpdate(Date.now());
+  };
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -59,12 +65,16 @@ const SuspendedCoffee = () => {
           </div>
 
           {/* Le Mur */}
-          <SuspendedWall />
+          <SuspendedWall lastUpdate={lastUpdate} />
 
         </div>
       </div>
 
-      <AddSuspendedDialog open={isAddOpen} onOpenChange={setIsAddOpen} />
+      <AddSuspendedDialog 
+        open={isAddOpen} 
+        onOpenChange={setIsAddOpen} 
+        onSuccess={handleSuccess}
+      />
     </div>
   );
 };
