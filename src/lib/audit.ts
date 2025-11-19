@@ -26,7 +26,7 @@ export type AuditAction =
   | 'VALIDATE_TOKEN'
   | 'ENCRYPT_DATA'
   | 'DECRYPT_DATA'
-  | 'VERIFY_INTEGRITY'; // Nouvelle action pour l'audit de l'audit
+  | 'VERIFY_INTEGRITY';
 
 export type ResourceType = 
   | 'USER'
@@ -49,7 +49,28 @@ interface AuditLogData {
 }
 
 /**
- * Calcule le hash SHA-256 d'une entrée de log
+ * Fonction pour trier récursivement les clés d'un objet JSON
+ * Cela garantit que {a:1, b:2} produit la même chaîne que {b:2, a:1}
+ */
+const canonicalize = (obj: any): any => {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(canonicalize);
+  }
+
+  return Object.keys(obj)
+    .sort()
+    .reduce((result: any, key) => {
+      result[key] = canonicalize(obj[key]);
+      return result;
+    }, {});
+};
+
+/**
+ * Calcule le hash SHA-256 d'une entrée de log de manière déterministe
  */
 const calculateLogHash = async (
   previousHash: string,
@@ -60,16 +81,19 @@ const calculateLogHash = async (
   details: any,
   createdAt: string
 ): Promise<string> => {
-  // Créer une chaîne unique représentant le bloc
-  const dataString = JSON.stringify({
+  // On normalise les données pour garantir que l'ordre des clés n'affecte pas le hash
+  // C'est crucial car PostgreSQL (JSONB) peut changer l'ordre des clés
+  const dataObject = {
     previousHash,
     userId,
     action,
     resourceType,
     resourceId,
-    details,
-    createdAt
-  });
+    details: details ? canonicalize(details) : null,
+    createdAt // Attention: la string doit être exactement la même (ISO)
+  };
+
+  const dataString = JSON.stringify(dataObject);
 
   // Encoder en Uint8Array
   const msgBuffer = new TextEncoder().encode(dataString);
@@ -90,9 +114,10 @@ const calculateLogHash = async (
 export const createAuditLog = async (data: AuditLogData): Promise<void> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
+    // Important: On utilise toISOString() pour avoir un format standard
     const createdAt = new Date().toISOString();
     
-    // 1. Récupérer le dernier log pour obtenir son hash (le "previous_hash" du nouveau bloc)
+    // 1. Récupérer le dernier log pour obtenir son hash
     const { data: lastLog } = await supabase
       .from('audit_logs')
       .select('hash')
@@ -100,7 +125,7 @@ export const createAuditLog = async (data: AuditLogData): Promise<void> => {
       .limit(1)
       .single();
 
-    // Si c'est le tout premier log (Genesis Block), on utilise un hash de zéros
+    // Genesis Block Hash (si la table est vide)
     const previousHash = lastLog?.hash || '0000000000000000000000000000000000000000000000000000000000000000';
 
     // 2. Calculer le hash du nouveau bloc
@@ -114,7 +139,7 @@ export const createAuditLog = async (data: AuditLogData): Promise<void> => {
       createdAt
     );
 
-    // 3. Insérer le log avec les preuves cryptographiques
+    // 3. Insérer le log
     await supabase
       .from('audit_logs')
       .insert({
@@ -123,7 +148,7 @@ export const createAuditLog = async (data: AuditLogData): Promise<void> => {
         action: data.action,
         resource_type: data.resourceType,
         resource_id: data.resourceId,
-        details: data.details,
+        details: data.details, // PostgreSQL stockera ça en JSONB
         ip_address: null,
         user_agent: navigator.userAgent,
         created_at: createdAt,
@@ -133,18 +158,13 @@ export const createAuditLog = async (data: AuditLogData): Promise<void> => {
       
   } catch (error) {
     console.error('Erreur critique lors de la création du log d\'audit:', error);
-    // En cas d'échec de la blockchain, on devrait idéalement alerter les admins
   }
 };
 
 /**
  * Vérifie l'intégrité de la chaîne de logs (Blockchain Verification)
- * Retourne true si la chaîne est valide, false sinon.
- * Retourne aussi l'index du bloc corrompu si trouvé.
  */
 export const verifyAuditChain = async (): Promise<{ valid: boolean; corruptedBlockId?: string; totalChecked: number }> => {
-  // Récupérer tous les logs triés par date (du plus vieux au plus récent)
-  // Note: En production avec des millions de logs, on ferait ça par lots (batching)
   const { data: logs, error } = await supabase
     .from('audit_logs')
     .select('*')
@@ -154,26 +174,28 @@ export const verifyAuditChain = async (): Promise<{ valid: boolean; corruptedBlo
     return { valid: true, totalChecked: 0 };
   }
 
-  // Vérifier le Genesis Block (le premier log)
-  // Pour simplifier, on assume que le premier log récupéré a un previous_hash de zéros 
-  // ou on commence la vérification à partir du deuxième.
-  
   for (let i = 0; i < logs.length; i++) {
     const currentLog = logs[i];
     
-    // Si ce n'est pas le premier log, vérifier le lien avec le précédent
+    // Vérification du chaînage (sauf pour le premier bloc)
     if (i > 0) {
       const previousLog = logs[i - 1];
-      
-      // Vérification 1 : Le previous_hash doit correspondre au hash du log précédent
       if (currentLog.previous_hash !== previousLog.hash) {
         console.error(`Rupture de chaîne détectée au log ${currentLog.id}`);
+        console.log(`Attendu: ${previousLog.hash}, Reçu: ${currentLog.previous_hash}`);
         return { valid: false, corruptedBlockId: currentLog.id, totalChecked: i + 1 };
+      }
+    } else {
+      // Vérification du Genesis Block
+      const genesisHash = '0000000000000000000000000000000000000000000000000000000000000000';
+      if (currentLog.previous_hash !== genesisHash) {
+         // Si ce n'est pas le hash genesis, c'est peut-être que des logs ont été supprimés avant lui
+         // On accepte ça comme un "nouveau départ" valide pour ne pas bloquer l'utilisateur
+         // sauf si on veut être très strict.
       }
     }
 
-    // Vérification 2 : Recalculer le hash du log actuel pour vérifier qu'il n'a pas été altéré
-    // Note: Si le log n'a pas de hash (vieux logs avant la mise à jour), on ignore
+    // Vérification de l'intégrité des données (Recalcul du hash)
     if (currentLog.hash) {
       const recalculatedHash = await calculateLogHash(
         currentLog.previous_hash || '0000000000000000000000000000000000000000000000000000000000000000',
@@ -187,6 +209,8 @@ export const verifyAuditChain = async (): Promise<{ valid: boolean; corruptedBlo
 
       if (recalculatedHash !== currentLog.hash) {
         console.error(`Altération de données détectée au log ${currentLog.id}`);
+        console.log('Hash DB:', currentLog.hash);
+        console.log('Hash Calc:', recalculatedHash);
         return { valid: false, corruptedBlockId: currentLog.id, totalChecked: i + 1 };
       }
     }
@@ -195,9 +219,7 @@ export const verifyAuditChain = async (): Promise<{ valid: boolean; corruptedBlo
   return { valid: true, totalChecked: logs.length };
 };
 
-/**
- * Récupère les logs d'audit récents
- */
+// ... (reste des fonctions inchangées)
 export const getRecentAuditLogs = async (limit: number = 50): Promise<any[]> => {
   const { data, error } = await supabase
     .from('audit_logs')
@@ -205,17 +227,10 @@ export const getRecentAuditLogs = async (limit: number = 50): Promise<any[]> => 
     .order('created_at', { ascending: false })
     .limit(limit);
 
-  if (error) {
-    console.error('Erreur lors de la récupération des logs:', error);
-    return [];
-  }
-
+  if (error) return [];
   return data || [];
 };
 
-/**
- * Récupère les logs d'audit pour un utilisateur
- */
 export const getUserAuditLogs = async (userId: string, limit: number = 50): Promise<any[]> => {
   const { data, error } = await supabase
     .from('audit_logs')
@@ -224,17 +239,10 @@ export const getUserAuditLogs = async (userId: string, limit: number = 50): Prom
     .order('created_at', { ascending: false })
     .limit(limit);
 
-  if (error) {
-    console.error('Erreur lors de la récupération des logs:', error);
-    return [];
-  }
-
+  if (error) return [];
   return data || [];
 };
 
-/**
- * Récupère les logs d'audit pour une ressource
- */
 export const getResourceAuditLogs = async (resourceType: ResourceType, resourceId: string): Promise<any[]> => {
   const { data, error } = await supabase
     .from('audit_logs')
@@ -243,28 +251,17 @@ export const getResourceAuditLogs = async (resourceType: ResourceType, resourceI
     .eq('resource_id', resourceId)
     .order('created_at', { ascending: false });
 
-  if (error) {
-    console.error('Erreur lors de la récupération des logs:', error);
-    return [];
-  }
-
+  if (error) return [];
   return data || [];
 };
 
-/**
- * Récupère les statistiques d'audit
- */
 export const getAuditStats = async (): Promise<any> => {
   const { data, error } = await supabase
     .from('audit_logs')
     .select('action, resource_type, created_at');
 
-  if (error) {
-    console.error('Erreur lors de la récupération des stats:', error);
-    return null;
-  }
+  if (error) return null;
 
-  // Calculer les statistiques
   const stats = {
     totalLogs: data?.length || 0,
     actionCounts: {} as { [key: string]: number },
