@@ -2,13 +2,13 @@
 
 <div align="center">
 
-**Système de point de vente moderne avec gestion de cartes récompenses, file d'attente de préparation et sécurité militaire**
+**Système de point de vente moderne avec gestion de cartes récompenses, file d'attente de préparation et sécurité avancée**
 
 [![React](https://img.shields.io/badge/React-18.3.1-61DAFB?style=for-the-badge&logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5.3-3178C6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-2.81.1-3ECF8E?style=for-the-badge&logo=supabase)](https://supabase.com/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4.11-06B6D4?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com/)
-[![Security](https://img.shields.io/badge/Security-Military_Grade-red?style=for-the-badge&logo=shield)](https://github.com/)
+[![Security](https://img.shields.io/badge/Security-Advanced-red?style=for-the-badge&logo=shield)](https://github.com/)
 
 [🚀 Voir le logiciel](https://www.cafemarieanne.ca/) • [📖 Documentation](#table-des-matières) • [🐛 Signaler un bug](#)
 
@@ -38,7 +38,7 @@
 
 ## 🎯 À propos du projet
 
-**Café Marie Anne** est un système de gestion complet conçu pour un café scolaire. Il combine un point de vente (POS), un système de cartes récompenses avec chiffrement AES-256-GCM, une file d'attente de préparation en temps réel, un système d'audit complet, et des **mécanismes de sécurité de niveau militaire** incluant honeypots, canary tokens et chiffrement de bout en bout.
+**Café Marie Anne** est un système de gestion complet conçu pour un café scolaire. Il combine un point de vente (POS), un système de cartes récompenses avec chiffrement AES-256-GCM, une file d'attente de préparation en temps réel, un système d'audit complet, et des **mécanismes de sécurité avancés** incluant honeypots, canary tokens et chiffrement de bout en bout.
 
 ### 🎓 Contexte
 
@@ -154,6 +154,6 @@ Ce projet est sous licence **MIT**.
 
 **Fait avec ❤️ et 🔒 pour Café Marie Anne**
 
-**Sécurité : Niveau Militaire 🛡️**
+**Sécurité : Avancée 🛡️**
 
 </div>

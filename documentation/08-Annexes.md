@@ -6,7 +6,7 @@ Ce chapitre final sert de référence technique et de complément aux informatio
 
 ## 8.1. Glossaire des Termes Techniques
 
--   **AES-GCM (Advanced Encryption Standard - Galois/Counter Mode) :** Algorithme de chiffrement symétrique de niveau militaire. Le mode GCM fournit à la fois le chiffrement des données et leur authentification, garantissant confidentialité et intégrité. Utilisé pour chiffrer les données personnelles au repos.
+-   **AES-GCM (Advanced Encryption Standard - Galois/Counter Mode) :** Algorithme de chiffrement symétrique standardisé et robuste. Le mode GCM fournit à la fois le chiffrement des données et leur authentification, garantissant confidentialité et intégrité. Utilisé pour chiffrer les données personnelles au repos.
 
 -   **BaaS (Backend-as-a-Service) :** Modèle de cloud computing où les développeurs externalisent toute la gestion de l'infrastructure backend (serveurs, bases de données, authentification) à un fournisseur tiers, comme Supabase.
 

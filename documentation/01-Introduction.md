@@ -38,7 +38,7 @@ Dans le contexte d'un café scolaire, la robustesse n'est pas une option, c'est 
 
 #### 1.1.2.3. "Sécurisée" : La Sécurité comme Fondement
 
-La sécurité n'est pas une couche ajoutée, mais le **fondement même de l'architecture**. Étant donné que le système traite les données d'élèves, dont plusieurs sont mineurs, une approche de "sécurité de niveau militaire" a été adoptée.
+La sécurité n'est pas une couche ajoutée, mais le **fondement même de l'architecture**. Étant donné que le système traite les données d'élèves, dont plusieurs sont mineurs, une approche de **haute sécurité** a été adoptée.
 
 -   **Conformité à la Loi 25 :** Le système est conçu pour répondre et dépasser les exigences de la Loi 25 du Québec sur la protection des renseignements personnels.
 -   **Chiffrement Multicouche :**
