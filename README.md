@@ -19,6 +19,7 @@
 ## 📋 Table des matières
 
 - [🎯 À propos du projet](#-à-propos-du-projet)
+- [📸 Aperçu](#-aperçu)
 - [✨ Fonctionnalités principales](#-fonctionnalités-principales)
 - [🏗️ Architecture technique](#️-architecture-technique)
 - [🔒 Sécurité](#-sécurité)
@@ -48,6 +49,20 @@ Ce système a été développé pour gérer efficacement les opérations d'un ca
 - La **traçabilité complète** de toutes les opérations
 - La **solidarité** via le module de Café Suspendu
 - La **détection d'intrusion** automatique avec honeypots
+
+---
+
+## 📸 Aperçu
+
+<div align="center">
+  <img src="docs/screenshots/dashboard.png" alt="Tableau de bord" width="800" />
+  <p><em>Tableau de bord en temps réel avec statistiques et accès rapide</em></p>
+  
+  <br />
+  
+  <img src="docs/screenshots/reward-cards.png" alt="Gestion des cartes" width="800" />
+  <p><em>Gestion sécurisée des cartes récompenses et profils clients</em></p>
+</div>
 
 ---
 
