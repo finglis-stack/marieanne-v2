@@ -108,9 +108,6 @@ export const SuspendedWall = ({ lastUpdate }: SuspendedWallProps) => {
       .in('status', ['pending', 'ready']);
 
     if (!queueData || queueData.length === 0) return 0;
-
-    // On simplifie ici : chaque entrée dans la queue compte pour 1 (car on ne sait pas la quantité exacte sans requêter orders/items complexe)
-    // Pour être plus précis, on devrait regarder les items, mais pour un don unitaire, +1 est une approximation sûre.
     return queueData.length; 
   };
 
@@ -229,9 +226,9 @@ export const SuspendedWall = ({ lastUpdate }: SuspendedWallProps) => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredItems.map((item) => (
               <Card key={item.id} className="relative overflow-hidden backdrop-blur-xl bg-slate-900/60 border-pink-500/30 hover:border-pink-400 transition-all group">
-                <div className="absolute inset-0 bg-gradient-to-br from-pink-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute inset-0 bg-gradient-to-br from-pink-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                 
-                <div className="p-4 space-y-4">
+                <div className="p-4 space-y-4 relative z-10">
                   <div className="flex gap-3">
                     {item.product.image_url ? (
                       <img 
