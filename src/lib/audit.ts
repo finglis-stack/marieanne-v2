@@ -50,7 +50,6 @@ interface AuditLogData {
 
 /**
  * Fonction pour trier récursivement les clés d'un objet JSON
- * Cela garantit que {a:1, b:2} produit la même chaîne que {b:2, a:1}
  */
 const canonicalize = (obj: any): any => {
   if (obj === null || typeof obj !== 'object') {
@@ -70,7 +69,8 @@ const canonicalize = (obj: any): any => {
 };
 
 /**
- * Calcule le hash SHA-256 d'une entrée de log de manière déterministe
+ * Calcule le hash SHA-256 d'une entrée de log
+ * CORRECTION : On utilise timestampEpoch au lieu de la string de date pour éviter les erreurs de format DB
  */
 const calculateLogHash = async (
   previousHash: string,
@@ -79,10 +79,8 @@ const calculateLogHash = async (
   resourceType: string,
   resourceId: string | null,
   details: any,
-  createdAt: string
+  timestampEpoch: number // Changement ici : nombre au lieu de string
 ): Promise<string> => {
-  // On normalise les données pour garantir que l'ordre des clés n'affecte pas le hash
-  // C'est crucial car PostgreSQL (JSONB) peut changer l'ordre des clés
   const dataObject = {
     previousHash,
     userId,
@@ -90,18 +88,12 @@ const calculateLogHash = async (
     resourceType,
     resourceId,
     details: details ? canonicalize(details) : null,
-    createdAt // Attention: la string doit être exactement la même (ISO)
+    timestamp: timestampEpoch // On hache le nombre
   };
 
   const dataString = JSON.stringify(dataObject);
-
-  // Encoder en Uint8Array
   const msgBuffer = new TextEncoder().encode(dataString);
-
-  // Hacher avec SHA-256
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-
-  // Convertir en chaîne hexadécimale
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
@@ -109,15 +101,15 @@ const calculateLogHash = async (
 };
 
 /**
- * Crée un log d'audit sécurisé (Blockchain Entry)
+ * Crée un log d'audit sécurisé
  */
 export const createAuditLog = async (data: AuditLogData): Promise<void> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    // Important: On utilise toISOString() pour avoir un format standard
-    const createdAt = new Date().toISOString();
+    const now = new Date();
+    const createdAtISO = now.toISOString();
+    const timestampEpoch = now.getTime(); // Précision ms
     
-    // 1. Récupérer le dernier log pour obtenir son hash
     const { data: lastLog } = await supabase
       .from('audit_logs')
       .select('hash')
@@ -125,10 +117,8 @@ export const createAuditLog = async (data: AuditLogData): Promise<void> => {
       .limit(1)
       .single();
 
-    // Genesis Block Hash (si la table est vide)
     const previousHash = lastLog?.hash || '0000000000000000000000000000000000000000000000000000000000000000';
 
-    // 2. Calculer le hash du nouveau bloc
     const currentHash = await calculateLogHash(
       previousHash,
       user?.id || null,
@@ -136,10 +126,9 @@ export const createAuditLog = async (data: AuditLogData): Promise<void> => {
       data.resourceType,
       data.resourceId || null,
       data.details,
-      createdAt
+      timestampEpoch
     );
 
-    // 3. Insérer le log
     await supabase
       .from('audit_logs')
       .insert({
@@ -148,10 +137,10 @@ export const createAuditLog = async (data: AuditLogData): Promise<void> => {
         action: data.action,
         resource_type: data.resourceType,
         resource_id: data.resourceId,
-        details: data.details, // PostgreSQL stockera ça en JSONB
+        details: data.details,
         ip_address: null,
         user_agent: navigator.userAgent,
-        created_at: createdAt,
+        created_at: createdAtISO,
         hash: currentHash,
         previous_hash: previousHash
       });
@@ -162,7 +151,7 @@ export const createAuditLog = async (data: AuditLogData): Promise<void> => {
 };
 
 /**
- * Vérifie l'intégrité de la chaîne de logs (Blockchain Verification)
+ * Vérifie l'intégrité de la chaîne de logs
  */
 export const verifyAuditChain = async (): Promise<{ valid: boolean; corruptedBlockId?: string; totalChecked: number }> => {
   const { data: logs, error } = await supabase
@@ -177,26 +166,19 @@ export const verifyAuditChain = async (): Promise<{ valid: boolean; corruptedBlo
   for (let i = 0; i < logs.length; i++) {
     const currentLog = logs[i];
     
-    // Vérification du chaînage (sauf pour le premier bloc)
     if (i > 0) {
       const previousLog = logs[i - 1];
       if (currentLog.previous_hash !== previousLog.hash) {
         console.error(`Rupture de chaîne détectée au log ${currentLog.id}`);
-        console.log(`Attendu: ${previousLog.hash}, Reçu: ${currentLog.previous_hash}`);
         return { valid: false, corruptedBlockId: currentLog.id, totalChecked: i + 1 };
-      }
-    } else {
-      // Vérification du Genesis Block
-      const genesisHash = '0000000000000000000000000000000000000000000000000000000000000000';
-      if (currentLog.previous_hash !== genesisHash) {
-         // Si ce n'est pas le hash genesis, c'est peut-être que des logs ont été supprimés avant lui
-         // On accepte ça comme un "nouveau départ" valide pour ne pas bloquer l'utilisateur
-         // sauf si on veut être très strict.
       }
     }
 
-    // Vérification de l'intégrité des données (Recalcul du hash)
     if (currentLog.hash) {
+      // CORRECTION : On convertit la date DB en timestamp Unix pour la vérification
+      const dbDate = new Date(currentLog.created_at);
+      const timestampEpoch = dbDate.getTime();
+
       const recalculatedHash = await calculateLogHash(
         currentLog.previous_hash || '0000000000000000000000000000000000000000000000000000000000000000',
         currentLog.user_id,
@@ -204,7 +186,7 @@ export const verifyAuditChain = async (): Promise<{ valid: boolean; corruptedBlo
         currentLog.resource_type,
         currentLog.resource_id,
         currentLog.details,
-        currentLog.created_at
+        timestampEpoch
       );
 
       if (recalculatedHash !== currentLog.hash) {

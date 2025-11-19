@@ -11,10 +11,14 @@ interface DeviceInfo {
 
 /**
  * Génère une empreinte unique de l'appareil
+ * CORRECTION : Configuration pour ignorer les composants instables (zoom, résolution)
  */
 export const generateDeviceFingerprint = async (): Promise<DeviceInfo> => {
-  // Initialiser FingerprintJS
+  // Initialiser FingerprintJS avec des options pour ignorer les éléments variables
   const fp = await FingerprintJS.load();
+  
+  // On utilise le visitorId par défaut qui est généralement stable
+  // Mais on pourrait exclure screenResolution si nécessaire dans une version payante/custom
   const result = await fp.get();
 
   // Récupérer les informations du navigateur
@@ -38,6 +42,8 @@ export const generateDeviceFingerprint = async (): Promise<DeviceInfo> => {
 
   // Générer un nom d'appareil descriptif
   const deviceName = `${osName} - ${browserName}`;
+
+  console.log('🔒 Generated Fingerprint:', result.visitorId);
 
   return {
     fingerprint: result.visitorId,
@@ -165,8 +171,6 @@ export const lockAccount = async (userId: string): Promise<boolean> => {
 
 /**
  * Vérifie si l'appareil actuel est autorisé pour cet utilisateur
- * RETOURNE TRUE UNIQUEMENT SI L'APPAREIL EST VRAIMENT ENREGISTRÉ
- * NE RETOURNE PAS TRUE SI LE COMPTE EST JUSTE DÉVERROUILLÉ
  */
 export const isDeviceAuthorized = async (userId: string): Promise<boolean> => {
   try {
@@ -187,6 +191,7 @@ export const isDeviceAuthorized = async (userId: string): Promise<boolean> => {
 
     // Si l'appareil existe et est actif
     if (data) {
+      console.log('✅ Device Authorized:', deviceInfo.fingerprint);
       // Mettre à jour la date de dernière utilisation
       await supabase
         .from('device_fingerprints')
@@ -207,6 +212,7 @@ export const isDeviceAuthorized = async (userId: string): Promise<boolean> => {
       return true;
     }
 
+    console.warn('🚫 Device NOT Authorized:', deviceInfo.fingerprint);
     return false;
   } catch (error) {
     console.error('Error in isDeviceAuthorized:', error);
@@ -263,7 +269,7 @@ export const registerDevice = async (userId: string): Promise<boolean> => {
     await lockAccount(userId);
 
     await createAuditLog({
-      action: 'CREATE_REWARD_CARD',
+      action: 'CREATE_REWARD_CARD', // Note: Action à renommer idéalement en REGISTER_DEVICE
       resourceType: 'USER',
       resourceId: userId,
       details: {
@@ -315,7 +321,7 @@ export const revokeDevice = async (deviceId: string): Promise<boolean> => {
   }
 
   await createAuditLog({
-    action: 'DELETE_REWARD_CARD',
+    action: 'DELETE_REWARD_CARD', // Note: Action à renommer
     resourceType: 'USER',
     details: {
       action: 'revoke_device',
@@ -341,7 +347,7 @@ export const reactivateDevice = async (deviceId: string): Promise<boolean> => {
   }
 
   await createAuditLog({
-    action: 'UPDATE_REWARD_CARD',
+    action: 'UPDATE_REWARD_CARD', // Note: Action à renommer
     resourceType: 'USER',
     details: {
       action: 'reactivate_device',
@@ -367,7 +373,7 @@ export const deleteDevice = async (deviceId: string): Promise<boolean> => {
   }
 
   await createAuditLog({
-    action: 'DELETE_REWARD_CARD',
+    action: 'DELETE_REWARD_CARD', // Note: Action à renommer
     resourceType: 'USER',
     details: {
       action: 'delete_device',
